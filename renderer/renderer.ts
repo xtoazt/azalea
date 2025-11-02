@@ -508,17 +508,17 @@ class ClayTerminal {
 
 // AI Assistant Class
 class AIAssistant {
-  private sidebar: HTMLElement;
-  private sidebarToggle: HTMLElement;
-  private sidebarClose: HTMLElement;
-  private chatMessages: HTMLElement;
-  private chatInput: HTMLTextAreaElement;
-  private sendButton: HTMLButtonElement;
-  private executeButton: HTMLElement;
-  private quickFixButton: HTMLElement;
-  private quickFixSidebarButton: HTMLElement;
-  private modelSelect: HTMLSelectElement;
-  private terminalContainer: HTMLElement;
+  private sidebar!: HTMLElement;
+  private sidebarToggle!: HTMLElement;
+  private sidebarClose!: HTMLElement;
+  private chatMessages!: HTMLElement;
+  private chatInput!: HTMLTextAreaElement;
+  private sendButton!: HTMLButtonElement;
+  private executeButton!: HTMLElement;
+  private quickFixButton!: HTMLElement;
+  private quickFixSidebarButton!: HTMLElement;
+  private modelSelect!: HTMLSelectElement;
+  private terminalContainer!: HTMLElement;
   private isOpen: boolean = false;
   private conversationHistory: Array<{ role: string; content: string }> = [];
   private lastAISuggestion: string | null = null;
@@ -539,7 +539,7 @@ class AIAssistant {
     const modelEl = document.getElementById('model-select');
     const terminalEl = document.querySelector('.terminal-container');
 
-    if (!sidebarEl || !toggleEl || !closeEl || !messagesEl || !inputEl || !buttonEl || !modelEl || !terminalEl) {
+    if (!sidebarEl || !toggleEl || !closeEl || !messagesEl || !inputEl || !buttonEl || !modelEl || !terminalEl || !executeEl || !quickFixEl || !quickFixSidebarEl) {
       console.error('AI Assistant: Required DOM elements not found');
       return;
     }
@@ -550,9 +550,9 @@ class AIAssistant {
     this.chatMessages = messagesEl;
     this.chatInput = inputEl as HTMLTextAreaElement;
     this.sendButton = buttonEl as HTMLButtonElement;
-    this.executeButton = executeEl!;
-    this.quickFixButton = quickFixEl!;
-    this.quickFixSidebarButton = quickFixSidebarEl!;
+    this.executeButton = executeEl;
+    this.quickFixButton = quickFixEl;
+    this.quickFixSidebarButton = quickFixSidebarEl;
     this.modelSelect = modelEl as HTMLSelectElement;
     this.terminalContainer = terminalEl as HTMLElement;
 

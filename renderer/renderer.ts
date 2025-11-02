@@ -20,6 +20,7 @@ export {};
 declare global {
   interface Window {
     electronAPI: ElectronAPI;
+    clayTerminal: ClayTerminal;
   }
 }
 
@@ -32,6 +33,8 @@ class ClayTerminal {
   private homeDirectory: string = '';
   private platform: string = '';
   private isExecuting: boolean = false;
+  private lastError: { command: string; error: string; timestamp: number } | null = null;
+  private recentOutput: string[] = [];
 
   constructor() {
     const outputEl = document.getElementById('terminal-output');
@@ -44,6 +47,36 @@ class ClayTerminal {
     this.outputContainer = outputEl;
     this.commandInput = inputEl as HTMLInputElement;
     this.initializeTerminal();
+    
+    // Expose to global scope for AI access
+    window.clayTerminal = this;
+  }
+
+  // Public methods for AI Assistant
+  public async executeCommandForAI(command: string): Promise<string> {
+    this.commandInput.value = command;
+    await this.executeCommand(command);
+    return this.getLastOutput();
+  }
+
+  public getLastError(): { command: string; error: string } | null {
+    return this.lastError;
+  }
+
+  public getRecentOutput(): string {
+    return this.recentOutput.slice(-10).join('\n');
+  }
+
+  public getCurrentDirectory(): string {
+    return this.currentDirectory;
+  }
+
+  private getLastOutput(): string {
+    const lines = Array.from(this.outputContainer.querySelectorAll('.terminal-line'))
+      .slice(-5)
+      .map(el => el.textContent || '')
+      .join('\n');
+    return lines;
   }
 
   private async initializeTerminal(): Promise<void> {
@@ -119,6 +152,15 @@ class ClayTerminal {
     this.outputContainer.addEventListener('click', () => {
       this.commandInput.focus();
     });
+
+    // Alt+F for Quick Fix
+    document.addEventListener('keydown', (e) => {
+      if (e.altKey && e.key === 'f') {
+        e.preventDefault();
+        const quickFixBtn = document.getElementById('quick-fix-btn');
+        quickFixBtn?.click();
+      }
+    });
   }
 
   private async handleKeyDown(e: KeyboardEvent): Promise<void> {
@@ -191,6 +233,7 @@ class ClayTerminal {
     // Display the command
     this.addCommandLine(command);
     this.isExecuting = true;
+    this.lastError = null; // Clear previous error
 
     // Handle built-in commands
     if (command === 'clear' || command === 'cls') {
@@ -256,37 +299,40 @@ class ClayTerminal {
       const stream = await window.electronAPI.executeCommandStream(command, this.currentDirectory);
       
       let hasOutput = false;
+      let outputText = '';
 
       stream.onOutput((data: string) => {
         hasOutput = true;
+        outputText += data;
         const lines = data.split('\n');
         lines.forEach((line: string) => {
           if (line.trim() || !hasOutput) {
             this.addOutputLine(line, 'output');
+            this.recentOutput.push(line);
+            if (this.recentOutput.length > 50) {
+              this.recentOutput.shift();
+            }
           }
         });
       });
 
       stream.onClose((code: number) => {
-        if (code !== 0 && !hasOutput) {
+        if (code !== 0) {
           this.addOutputLine(`Process exited with code ${code}`, 'error');
+          this.lastError = {
+            command,
+            error: outputText || `Process exited with code ${code}`,
+            timestamp: Date.now()
+          };
         }
       });
-
-      // Handle stdin for interactive commands
-      const originalFocus = document.activeElement;
-      const stdinHandler = (e: KeyboardEvent) => {
-        if (e.key === 'Enter') {
-          stream.write('\n');
-        } else if (e.key.length === 1 || e.key === 'Backspace') {
-          // Forward keyboard input to process
-        }
-      };
-      
-      // For now, we'll just execute and show output
-      // Full interactive stdin support would require more complex implementation
     } catch (error: any) {
       this.addOutputLine(`Error: ${error.message}`, 'error');
+      this.lastError = {
+        command,
+        error: error.message,
+        timestamp: Date.now()
+      };
     }
   }
 
@@ -302,8 +348,22 @@ class ClayTerminal {
         const lines = result.output.split('\n');
         lines.forEach((line: string) => {
           // Always show the line, even if empty (for formatting)
-          this.addOutputLine(line, result.success ? 'output' : 'error');
+          const outputType = result.success ? 'output' : 'error';
+          this.addOutputLine(line, outputType);
+          this.recentOutput.push(line);
+          if (this.recentOutput.length > 50) {
+            this.recentOutput.shift();
+          }
         });
+        
+        // Track errors
+        if (!result.success) {
+          this.lastError = {
+            command,
+            error: result.output,
+            timestamp: Date.now()
+          };
+        }
         
         // Remove trailing empty line if present
         if (lines[lines.length - 1] === '') {
@@ -316,9 +376,19 @@ class ClayTerminal {
 
       if (!result.success && !result.output) {
         this.addOutputLine(`Command failed with exit code ${result.exitCode}`, 'error');
+        this.lastError = {
+          command,
+          error: `Command failed with exit code ${result.exitCode}`,
+          timestamp: Date.now()
+        };
       }
     } catch (error: any) {
       this.addOutputLine(`Error: ${error.message}`, 'error');
+      this.lastError = {
+        command,
+        error: error.message,
+        timestamp: Date.now()
+      };
     }
   }
 
@@ -333,9 +403,19 @@ class ClayTerminal {
         this.currentDirectory = result.cwd || '';
       } else {
         this.addOutputLine(`cd: ${result.error}`, 'error');
+        this.lastError = {
+          command: `cd ${dir}`,
+          error: result.error || 'Directory change failed',
+          timestamp: Date.now()
+        };
       }
     } catch (error: any) {
       this.addOutputLine(`cd: ${error.message}`, 'error');
+      this.lastError = {
+        command: `cd ${dir}`,
+        error: error.message,
+        timestamp: Date.now()
+      };
     }
   }
 
@@ -366,6 +446,7 @@ class ClayTerminal {
     this.addOutputLine('Navigation:', 'info');
     this.addOutputLine('  ↑/↓ Arrow keys  - Navigate command history', 'output');
     this.addOutputLine('  Ctrl+C          - Cancel current command', 'output');
+    this.addOutputLine('  Alt+F           - Quick Fix last error', 'output');
   }
 
   private addCommandLine(command: string): void {
@@ -425,7 +506,335 @@ class ClayTerminal {
   }
 }
 
-// Initialize terminal when DOM is ready
+// AI Assistant Class
+class AIAssistant {
+  private sidebar: HTMLElement;
+  private sidebarToggle: HTMLElement;
+  private sidebarClose: HTMLElement;
+  private chatMessages: HTMLElement;
+  private chatInput: HTMLTextAreaElement;
+  private sendButton: HTMLButtonElement;
+  private executeButton: HTMLElement;
+  private quickFixButton: HTMLElement;
+  private quickFixSidebarButton: HTMLElement;
+  private modelSelect: HTMLSelectElement;
+  private terminalContainer: HTMLElement;
+  private isOpen: boolean = false;
+  private conversationHistory: Array<{ role: string; content: string }> = [];
+  private lastAISuggestion: string | null = null;
+
+  private readonly API_BASE_URL = 'https://api.llm7.io/v1';
+  private readonly API_KEY = 'unused'; // Free tier, can upgrade at https://token.llm7.io/
+
+  constructor() {
+    const sidebarEl = document.getElementById('sidebar');
+    const toggleEl = document.getElementById('sidebar-toggle');
+    const closeEl = document.getElementById('sidebar-close');
+    const messagesEl = document.getElementById('chat-messages');
+    const inputEl = document.getElementById('chat-input');
+    const buttonEl = document.getElementById('send-button');
+    const executeEl = document.getElementById('execute-btn');
+    const quickFixEl = document.getElementById('quick-fix-btn');
+    const quickFixSidebarEl = document.getElementById('quick-fix-sidebar-btn');
+    const modelEl = document.getElementById('model-select');
+    const terminalEl = document.querySelector('.terminal-container');
+
+    if (!sidebarEl || !toggleEl || !closeEl || !messagesEl || !inputEl || !buttonEl || !modelEl || !terminalEl) {
+      console.error('AI Assistant: Required DOM elements not found');
+      return;
+    }
+
+    this.sidebar = sidebarEl;
+    this.sidebarToggle = toggleEl;
+    this.sidebarClose = closeEl;
+    this.chatMessages = messagesEl;
+    this.chatInput = inputEl as HTMLTextAreaElement;
+    this.sendButton = buttonEl as HTMLButtonElement;
+    this.executeButton = executeEl!;
+    this.quickFixButton = quickFixEl!;
+    this.quickFixSidebarButton = quickFixSidebarEl!;
+    this.modelSelect = modelEl as HTMLSelectElement;
+    this.terminalContainer = terminalEl as HTMLElement;
+
+    this.setupEventListeners();
+    this.addWelcomeMessage();
+  }
+
+  private setupEventListeners(): void {
+    this.sidebarToggle.addEventListener('click', () => this.toggleSidebar());
+    this.sidebarClose.addEventListener('click', () => this.closeSidebar());
+    this.sendButton.addEventListener('click', () => this.sendMessage());
+    this.executeButton.addEventListener('click', () => this.executeLastCommand());
+    this.quickFixButton.addEventListener('click', () => this.quickFixError());
+    this.quickFixSidebarButton.addEventListener('click', () => this.quickFixError());
+    
+    this.chatInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        this.sendMessage();
+      }
+    });
+
+    // System prompt for coding and bash assistance
+    this.conversationHistory.push({
+      role: 'system',
+      content: 'You are a helpful AI assistant specialized in coding, bash commands, and terminal operations. When the user asks for a command or wants to execute something, provide the command in a clear format. If they use @command or ask to execute, provide ONLY the command without explanations unless asked.'
+    });
+  }
+
+  private toggleSidebar(): void {
+    this.isOpen = !this.isOpen;
+    if (this.isOpen) {
+      this.sidebar.classList.add('open');
+      this.terminalContainer.classList.add('sidebar-open');
+      this.sidebarToggle.classList.add('active');
+      this.chatInput.focus();
+    } else {
+      this.closeSidebar();
+    }
+  }
+
+  private closeSidebar(): void {
+    this.isOpen = false;
+    this.sidebar.classList.remove('open');
+    this.terminalContainer.classList.remove('sidebar-open');
+    this.sidebarToggle.classList.remove('active');
+  }
+
+  private addWelcomeMessage(): void {
+    this.addMessage('assistant', 'Hello! I\'m your AI coding assistant. I can help with:\n\n• Writing and debugging code\n• Bash/terminal commands\n• Explaining scripts\n• Best practices\n• Execute commands for you\n• Quick fix errors\n\nTry asking me to run a command, or use the Quick Fix button if you get an error!');
+  }
+
+  private addMessage(role: 'user' | 'assistant', content: string, isLoading: boolean = false): HTMLElement {
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `message ${role}${isLoading ? ' loading' : ''}`;
+    
+    const header = document.createElement('div');
+    header.className = 'message-header';
+    header.textContent = role === 'user' ? 'You' : 'Assistant';
+    
+    const messageContent = document.createElement('div');
+    messageContent.className = 'message-content';
+    
+    // Format markdown code blocks
+    const formattedContent = this.formatMarkdown(content);
+    messageContent.innerHTML = formattedContent;
+    
+    messageDiv.appendChild(header);
+    messageDiv.appendChild(messageContent);
+    this.chatMessages.appendChild(messageDiv);
+    
+    this.scrollToBottom();
+    return messageDiv;
+  }
+
+  private formatMarkdown(text: string): string {
+    // Escape HTML first
+    let html = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    
+    // Code blocks
+    html = html.replace(/```(\w+)?\n([\s\S]*?)```/g, (match, lang, code) => {
+      return `<pre><code>${code.trim()}</code></pre>`;
+    });
+    
+    // Inline code
+    html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+    
+    // Bold
+    html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    
+    // Line breaks
+    html = html.replace(/\n/g, '<br>');
+    
+    return html;
+  }
+
+  private updateMessage(messageDiv: HTMLElement, content: string): void {
+    const contentEl = messageDiv.querySelector('.message-content');
+    if (contentEl) {
+      const formattedContent = this.formatMarkdown(content);
+      contentEl.innerHTML = formattedContent;
+      messageDiv.classList.remove('loading');
+      this.scrollToBottom();
+    }
+  }
+
+  private async sendMessage(): Promise<void> {
+    const message = this.chatInput.value.trim();
+    if (!message) return;
+
+    // Check for @command pattern
+    const isExecuteCommand = message.startsWith('@') || message.toLowerCase().includes('execute') || message.toLowerCase().includes('run');
+
+    // Add user message
+    this.addMessage('user', message);
+    this.conversationHistory.push({ role: 'user', content: message });
+
+    // Clear input and disable send button
+    this.chatInput.value = '';
+    this.sendButton.disabled = true;
+
+    // Add loading message
+    const loadingMessage = this.addMessage('assistant', 'Thinking...', true);
+
+    try {
+      const response = await this.callAPI(message);
+      const assistantContent = response || 'Sorry, I couldn\'t generate a response.';
+      this.updateMessage(loadingMessage, assistantContent);
+      this.conversationHistory.push({ role: 'assistant', content: assistantContent });
+      this.lastAISuggestion = assistantContent;
+
+      // If it looks like a command was suggested and user wants to execute
+      if (isExecuteCommand) {
+        const command = this.extractCommand(assistantContent);
+        if (command) {
+          setTimeout(() => {
+            this.addMessage('assistant', `Executing: ${command}`);
+            window.clayTerminal?.executeCommandForAI(command);
+          }, 500);
+        }
+      }
+    } catch (error: any) {
+      this.updateMessage(loadingMessage, `Error: ${error.message || 'Failed to get response'}`);
+      console.error('AI Assistant error:', error);
+    } finally {
+      this.sendButton.disabled = false;
+      this.chatInput.focus();
+    }
+  }
+
+  private extractCommand(text: string): string | null {
+    // Try to extract command from code blocks
+    const codeBlockMatch = text.match(/```[\w]*\n([^`]+)```/);
+    if (codeBlockMatch) {
+      const code = codeBlockMatch[1].trim().split('\n')[0].trim();
+      if (code && !code.startsWith('$') && !code.startsWith('#')) {
+        return code;
+      }
+    }
+
+    // Try to extract from inline code
+    const inlineCodeMatch = text.match(/`([^`]+)`/);
+    if (inlineCodeMatch) {
+      const code = inlineCodeMatch[1].trim();
+      if (code && code.length < 200 && !code.includes('\n')) {
+        return code;
+      }
+    }
+
+    // Try to find a command-like string
+    const lines = text.split('\n');
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed && trimmed.length < 200 && /^[a-zA-Z0-9_\-./]+\s/.test(trimmed)) {
+        return trimmed;
+      }
+    }
+
+    return null;
+  }
+
+  private async executeLastCommand(): Promise<void> {
+    if (!this.lastAISuggestion) {
+      this.addMessage('assistant', 'No command to execute. Ask me for a command first!');
+      return;
+    }
+
+    const command = this.extractCommand(this.lastAISuggestion);
+    if (command && window.clayTerminal) {
+      this.addMessage('assistant', `Executing: ${command}`);
+      await window.clayTerminal.executeCommandForAI(command);
+    } else {
+      this.addMessage('assistant', 'Could not extract a command from the last response.');
+    }
+  }
+
+  private async quickFixError(): Promise<void> {
+    if (!window.clayTerminal) {
+      this.addMessage('assistant', 'Terminal not available.');
+      return;
+    }
+
+    const error = window.clayTerminal.getLastError();
+    if (!error) {
+      this.addMessage('assistant', 'No error detected. Everything looks good! ✅');
+      return;
+    }
+
+    // Open sidebar if closed
+    if (!this.isOpen) {
+      this.toggleSidebar();
+    }
+
+    // Add context message
+    this.addMessage('user', `Fix this error:\nCommand: ${error.command}\nError: ${error.error}`);
+    
+    const loadingMessage = this.addMessage('assistant', 'Analyzing error and preparing fix...', true);
+
+    try {
+      const context = `Command that failed: ${error.command}\nError output: ${error.error}\nCurrent directory: ${window.clayTerminal.getCurrentDirectory()}\nRecent output: ${window.clayTerminal.getRecentOutput()}`;
+      
+      const prompt = `I got this error in my terminal:\n\n${context}\n\nPlease:\n1. Diagnose what went wrong\n2. Provide the exact command to fix it\n3. Explain briefly what the fix does\n\nFormat your response with the fix command in a code block.`;
+      
+      const response = await this.callAPI(prompt);
+      this.updateMessage(loadingMessage, response);
+      
+      // Extract and execute the fix command
+      const fixCommand = this.extractCommand(response);
+      if (fixCommand) {
+        setTimeout(() => {
+          this.addMessage('assistant', `\n⚡ Auto-executing fix: ${fixCommand}`);
+          window.clayTerminal?.executeCommandForAI(fixCommand);
+        }, 1000);
+      }
+    } catch (error: any) {
+      this.updateMessage(loadingMessage, `Error getting fix: ${error.message}`);
+    }
+  }
+
+  private async callAPI(userMessage: string): Promise<string> {
+    const selectedModel = this.modelSelect.value;
+    
+    // Build messages array (system + history + new user message)
+    // Include system message and conversation history
+    const messages = [
+      ...this.conversationHistory.filter(msg => msg.role === 'system'),
+      ...this.conversationHistory.filter(msg => msg.role !== 'system').slice(0, -1),
+      { role: 'user', content: userMessage }
+    ];
+
+    const response = await fetch(`${this.API_BASE_URL}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.API_KEY}`
+      },
+      body: JSON.stringify({
+        model: selectedModel,
+        messages: messages,
+        temperature: 0.7,
+        max_tokens: 2000
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`API Error: ${response.status} - ${errorText}`);
+    }
+
+    const data = await response.json();
+    return data.choices[0]?.message?.content || 'No response generated';
+  }
+
+  private scrollToBottom(): void {
+    requestAnimationFrame(() => {
+      this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
+    });
+  }
+}
+
+// Initialize terminal and AI assistant when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
   new ClayTerminal();
+  new AIAssistant();
 });

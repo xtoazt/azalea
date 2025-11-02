@@ -14,6 +14,9 @@ interface ElectronAPI {
   windowClose: () => Promise<void>;
 }
 
+// Make this file a module
+export {};
+
 declare global {
   interface Window {
     electronAPI: ElectronAPI;
@@ -31,8 +34,15 @@ class ClayTerminal {
   private isExecuting: boolean = false;
 
   constructor() {
-    this.outputContainer = document.getElementById('terminal-output')!;
-    this.commandInput = document.getElementById('command-input')!;
+    const outputEl = document.getElementById('terminal-output');
+    const inputEl = document.getElementById('command-input');
+    
+    if (!outputEl || !inputEl) {
+      throw new Error('Required DOM elements not found');
+    }
+    
+    this.outputContainer = outputEl;
+    this.commandInput = inputEl as HTMLInputElement;
     this.initializeTerminal();
   }
 
@@ -49,7 +59,9 @@ class ClayTerminal {
 
   private async loadHomeDirectory(): Promise<void> {
     try {
-      this.homeDirectory = await window.electronAPI.getHomeDirectory();
+      if (window.electronAPI) {
+        this.homeDirectory = await window.electronAPI.getHomeDirectory();
+      }
     } catch (error) {
       console.error('Failed to get home directory:', error);
     }
@@ -57,7 +69,9 @@ class ClayTerminal {
 
   private async loadPlatform(): Promise<void> {
     try {
-      this.platform = await window.electronAPI.getPlatform();
+      if (window.electronAPI) {
+        this.platform = await window.electronAPI.getPlatform();
+      }
     } catch (error) {
       console.error('Failed to get platform:', error);
     }
@@ -69,15 +83,21 @@ class ClayTerminal {
     const maximizeBtn = document.querySelector('.control.maximize');
 
     closeBtn?.addEventListener('click', () => {
-      window.electronAPI.windowClose();
+      if (window.electronAPI) {
+        window.electronAPI.windowClose();
+      }
     });
 
     minimizeBtn?.addEventListener('click', () => {
-      window.electronAPI.windowMinimize();
+      if (window.electronAPI) {
+        window.electronAPI.windowMinimize();
+      }
     });
 
     maximizeBtn?.addEventListener('click', () => {
-      window.electronAPI.windowMaximize();
+      if (window.electronAPI) {
+        window.electronAPI.windowMaximize();
+      }
     });
   }
 
@@ -229,6 +249,10 @@ class ClayTerminal {
 
   private async executeStreamingCommand(command: string): Promise<void> {
     try {
+      if (!window.electronAPI) {
+        throw new Error('electronAPI not available');
+      }
+      
       const stream = await window.electronAPI.executeCommandStream(command, this.currentDirectory);
       
       let hasOutput = false;
@@ -236,7 +260,7 @@ class ClayTerminal {
       stream.onOutput((data: string) => {
         hasOutput = true;
         const lines = data.split('\n');
-        lines.forEach(line => {
+        lines.forEach((line: string) => {
           if (line.trim() || !hasOutput) {
             this.addOutputLine(line, 'output');
           }
@@ -268,11 +292,15 @@ class ClayTerminal {
 
   private async executeSimpleCommand(command: string): Promise<void> {
     try {
+      if (!window.electronAPI) {
+        throw new Error('electronAPI not available');
+      }
+      
       const result = await window.electronAPI.executeCommand(command, this.currentDirectory);
       
       if (result.output) {
         const lines = result.output.split('\n');
-        lines.forEach(line => {
+        lines.forEach((line: string) => {
           // Always show the line, even if empty (for formatting)
           this.addOutputLine(line, result.success ? 'output' : 'error');
         });
@@ -296,6 +324,10 @@ class ClayTerminal {
 
   private async handleChangeDirectory(dir: string): Promise<void> {
     try {
+      if (!window.electronAPI) {
+        throw new Error('electronAPI not available');
+      }
+      
       const result = await window.electronAPI.changeDirectory(dir);
       if (result.success) {
         this.currentDirectory = result.cwd || '';
@@ -309,7 +341,9 @@ class ClayTerminal {
 
   private async updateDirectory(): Promise<void> {
     try {
-      this.currentDirectory = await window.electronAPI.getCurrentDirectory();
+      if (window.electronAPI) {
+        this.currentDirectory = await window.electronAPI.getCurrentDirectory();
+      }
     } catch (error) {
       console.error('Failed to get current directory:', error);
     }

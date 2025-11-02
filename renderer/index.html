@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Clay</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="terminal-container">
+    <div class="terminal-header">
+      <div class="terminal-controls">
+        <span class="control close"></span>
+        <span class="control minimize"></span>
+        <span class="control maximize"></span>
+      </div>
+      <div class="terminal-title">Clay</div>
+    </div>
+    <div class="terminal-body" id="terminal-output"></div>
+    <div class="terminal-input-container">
+      <input type="text" id="command-input" class="command-input" autocomplete="off" spellcheck="false" placeholder="Type a command and press Enter...">
+    </div>
+  </div>
+  <script src="./renderer.js"></script>
+</body>
+</html>
+

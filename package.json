@@ -1,0 +1,22 @@
+{
+  "name": "clay-terminal",
+  "version": "1.0.0",
+  "description": "Clay - A beautiful terminal built with Electron",
+  "main": "dist/src/main.js",
+  "scripts": {
+    "build": "tsc && npm run copy-files",
+    "copy-files": "mkdir -p dist/renderer && cp renderer/index.html dist/renderer/ && cp renderer/styles.css dist/renderer/",
+    "start": "npm run build && electron .",
+    "dev": "npm run copy-files && tsc && electron .",
+    "watch": "tsc --watch"
+  },
+  "keywords": ["electron", "terminal", "shell"],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "electron": "^28.0.0",
+    "typescript": "^5.3.3"
+  }
+}
+

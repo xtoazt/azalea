@@ -21,7 +21,7 @@ function createWindow(): void {
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
-    backgroundColor: '#000000',
+    backgroundColor: '#1e1e2e', // Catppuccin Mocha base
     frame: false,
     titleBarStyle: 'hidden',
     webPreferences: {

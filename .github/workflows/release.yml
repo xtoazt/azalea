@@ -40,18 +40,24 @@ jobs:
     - name: Build application
       run: npm run build
 
-    - name: Create distribution package
+    - name: Create distribution package (Linux/macOS)
+      if: runner.os != 'Windows'
       run: |
         mkdir -p dist-package
         cp -r dist dist-package/
         cp package.json dist-package/
         cp README.md dist-package/ 2>/dev/null || true
-        
-        if [ "${{ runner.os }}" == "Windows" ]; then
-          Compress-Archive -Path dist-package\* -DestinationPath ${{ matrix.artifact-name }}.zip
-        else
-          tar -czf ${{ matrix.artifact-name }}.tar.gz -C dist-package .
-        fi
+        tar -czf ${{ matrix.artifact-name }}.tar.gz -C dist-package .
+
+    - name: Create distribution package (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        New-Item -ItemType Directory -Force -Path dist-package | Out-Null
+        Copy-Item -Recurse -Path dist -Destination dist-package\dist
+        Copy-Item -Path package.json -Destination dist-package\
+        if (Test-Path README.md) { Copy-Item -Path README.md -Destination dist-package\ }
+        Compress-Archive -Path dist-package\* -DestinationPath ${{ matrix.artifact-name }}.zip -Force
 
     - name: Upload artifact
       uses: actions/upload-artifact@v4

@@ -1,7 +1,9 @@
 #!/bin/bash
 
-# Clay Terminal Startup Script
-# Starts both backend and frontend servers
+# Clay Terminal Unified Startup Script
+# Builds everything and starts the backend
+
+set -e
 
 echo "🚀 Starting Clay Terminal..."
 echo ""
@@ -12,7 +14,14 @@ if ! command -v node &> /dev/null; then
     exit 1
 fi
 
+# Build everything if needed
+if [ "$1" != "--no-build" ]; then
+    echo "📦 Building all components..."
+    ./build-all.sh
+fi
+
 # Start backend server
+echo ""
 echo "📡 Starting backend server..."
 cd backend
 if [ ! -d "node_modules" ]; then
@@ -20,32 +29,12 @@ if [ ! -d "node_modules" ]; then
     npm install
 fi
 
-# Start backend in background
-npm start &
-BACKEND_PID=$!
-cd ..
+# Start backend
+echo "✅ Backend starting on http://localhost:3000"
+echo "🌐 Open http://localhost:3000 in your browser"
+echo ""
+echo "Press Ctrl+C to stop the server"
+echo ""
 
-# Wait a moment for backend to start
-sleep 2
-
-# Start frontend (if needed)
-if [ "$1" = "--dev" ]; then
-    echo "🌐 Starting frontend dev server..."
-    cd web
-    if [ ! -d "node_modules" ]; then
-        echo "📦 Installing frontend dependencies..."
-        npm install
-    fi
-    npm run dev
-    cd ..
-else
-    echo "✅ Backend server running on http://localhost:3000"
-    echo "📝 Access the terminal at http://localhost:3000"
-    echo ""
-    echo "Press Ctrl+C to stop the server"
-    
-    # Wait for Ctrl+C
-    trap "kill $BACKEND_PID" EXIT
-    wait $BACKEND_PID
-fi
+npm start
 

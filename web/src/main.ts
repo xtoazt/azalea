@@ -2,13 +2,12 @@ import { Terminal } from 'xterm';
 import { FitAddon } from 'xterm-addon-fit';
 import { WebLinksAddon } from 'xterm-addon-web-links';
 import { CanvasAddon } from 'xterm-addon-canvas';
-import { RealTerminalBackend, RESTBackend } from './backend';
+import { WebWorkerBackendWrapper } from './backend-worker-wrapper';
 
 class ClayWebTerminal {
   private terminal: Terminal;
   private fitAddon: FitAddon;
-  private backend: RealTerminalBackend;
-  private restBackend: RESTBackend;
+  private backend: WebWorkerBackendWrapper;
   private isConnected: boolean = false;
   private commandHistory: string[] = [];
   private historyIndex: number = -1;
@@ -18,7 +17,6 @@ class ClayWebTerminal {
   private lastError: { command: string; output: string; timestamp: number } | null = null;
   private aiControlEnabled: boolean = false;
   private aiExecuting: boolean = false;
-  private useWebSocket: boolean = true;
 
   constructor() {
     this.terminal = new Terminal({
@@ -58,12 +56,8 @@ class ClayWebTerminal {
 
     this.aiAssistant = new SimpleAIAssistant();
     
-    // Determine backend URL based on environment
-    const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:3000/ws';
-    const restUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-    
-    this.backend = new RealTerminalBackend(wsUrl);
-    this.restBackend = new RESTBackend(restUrl);
+    // Use Web Worker backend (runs entirely in browser)
+    this.backend = new WebWorkerBackendWrapper();
 
     // Expose to window for UI access
     (window as any).clayTerminal = this;
@@ -85,7 +79,7 @@ class ClayWebTerminal {
     window.addEventListener('resize', () => {
       this.fitAddon.fit();
       // Resize terminal in backend
-      if (this.useWebSocket && this.backend.getConnected()) {
+      if (this.backend.getConnected()) {
         const dimensions = this.fitAddon.proposeDimensions();
         if (dimensions) {
           this.backend.resize(dimensions.cols, dimensions.rows);
@@ -96,7 +90,7 @@ class ClayWebTerminal {
     // Initial resize
     setTimeout(() => {
       this.fitAddon.fit();
-      if (this.useWebSocket && this.backend.getConnected()) {
+      if (this.backend.getConnected()) {
         const dimensions = this.fitAddon.proposeDimensions();
         if (dimensions) {
           this.backend.resize(dimensions.cols, dimensions.rows);
@@ -104,13 +98,13 @@ class ClayWebTerminal {
       }
     }, 100);
 
-    // Handle keyboard input - send directly to backend if using WebSocket
+    // Handle keyboard input - send directly to Web Worker backend
     this.terminal.onData((data: string) => {
-      if (this.useWebSocket && this.isConnected && this.backend.getConnected()) {
-        // Send directly to backend for real-time terminal
+      if (this.isConnected && this.backend.getConnected()) {
+        // Send directly to Web Worker backend for real-time terminal
         this.backend.sendInput(data);
       } else {
-        // Handle locally for REST API mode
+        // Handle locally if not connected
         this.handleLocalCommand(data);
       }
     });
@@ -132,66 +126,43 @@ class ClayWebTerminal {
 
   private async setupBackend(): Promise<void> {
     try {
-      this.terminal.write('\r\n\x1b[33m[INFO]\x1b[0m Connecting to terminal backend...\r\n');
+      this.terminal.write('\r\n\x1b[33m[INFO]\x1b[0m Initializing WebVM backend...\r\n');
       
-      // Try to connect via WebSocket first
-      try {
-        // Set up output handler
-        this.backend.onOutput((data: string) => {
-          this.terminal.write(data);
-        });
-        
-        this.backend.onExit((code: number, signal: number) => {
-          this.terminal.write(`\r\n\x1b[33m[Process exited]\x1b[0m Code: ${code}\r\n`);
-          this.writePrompt();
-        });
-        
-        this.backend.onError((error: string) => {
-          this.terminal.write(`\r\n\x1b[31m[Connection Error]\x1b[0m ${error}\r\n`);
-        });
-        
-        await this.backend.connect();
-        this.isConnected = true;
-        this.useWebSocket = true;
-        
-        // Get system info
-        const info = await this.restBackend.getSystemInfo();
-        if (info) {
-          this.currentDirectory = info.homeDir || info.cwd || '/';
-          this.terminal.write(`\x1b[32m[Connected]\x1b[0m Platform: ${info.platform}\r\n`);
-          this.terminal.write(`\x1b[32m[Connected]\x1b[0m Shell: ${info.shell}\r\n`);
-        } else {
-          this.currentDirectory = '/';
-        }
-        
-        this.terminal.write('\x1b[32m[INFO]\x1b[0m Terminal backend connected!\r\n');
-        this.hideLoading();
+      // Set up output handler
+      this.backend.onOutput((data: string) => {
+        this.terminal.write(data);
+      });
+      
+      this.backend.onExit((code: number, signal: number) => {
+        this.terminal.write(`\r\n\x1b[33m[Process exited]\x1b[0m Code: ${code}\r\n`);
         this.writePrompt();
-      } catch (wsError: any) {
-        // Fallback to REST API if WebSocket fails
-        console.warn('WebSocket connection failed, using REST API:', wsError);
-        this.useWebSocket = false;
-        
-        const healthCheck = await this.restBackend.healthCheck();
-        if (healthCheck) {
-          this.isConnected = true;
-          const info = await this.restBackend.getSystemInfo();
-          if (info) {
-            this.currentDirectory = info.homeDir || info.cwd || '/';
-          }
-          this.terminal.write('\x1b[33m[INFO]\x1b[0m Using REST API (WebSocket unavailable)\r\n');
-          this.terminal.write('\x1b[32m[INFO]\x1b[0m Terminal backend connected!\r\n');
-        } else {
-          throw new Error('Backend server not available');
-        }
-        
-        this.hideLoading();
-        this.writePrompt();
+      });
+      
+      this.backend.onError((error: string) => {
+        this.terminal.write(`\r\n\x1b[31m[Connection Error]\x1b[0m ${error}\r\n`);
+      });
+      
+      // Connect to Web Worker backend
+      await this.backend.connect();
+      this.isConnected = true;
+      
+      // Get system info
+      const info = await this.backend.getSystemInfo();
+      if (info) {
+        this.currentDirectory = info.homeDir || info.cwd || '/home/user';
+        this.terminal.write(`\x1b[32m[Connected]\x1b[0m Platform: ${info.platform}\r\n`);
+        this.terminal.write(`\x1b[32m[Connected]\x1b[0m Shell: ${info.shell}\r\n`);
+        this.terminal.write(`\x1b[32m[Connected]\x1b[0m Running in WebVM (browser)\r\n`);
+      } else {
+        this.currentDirectory = '/home/user';
       }
+      
+      this.terminal.write('\x1b[32m[INFO]\x1b[0m WebVM backend ready!\r\n');
+      this.hideLoading();
+      this.writePrompt();
     } catch (error: any) {
       this.terminal.write(`\x1b[31m[ERROR]\x1b[0m ${error.message}\r\n`);
-      this.terminal.write(`\x1b[33m[INFO]\x1b[0m Make sure the backend server is running:\r\n`);
-      this.terminal.write(`\x1b[33m[INFO]\x1b[0m   cd backend && npm install && npm start\r\n`);
+      this.terminal.write(`\x1b[33m[INFO]\x1b[0m WebVM backend initialization failed\r\n`);
       this.hideLoading();
       this.writePrompt();
     }
@@ -301,24 +272,19 @@ class ClayWebTerminal {
     }
 
     // Execute command
-    if (this.isConnected) {
-      if (this.useWebSocket && this.backend.getConnected()) {
-        // WebSocket mode - commands are sent in real-time, just execute the command
-        this.backend.sendInput(command + '\r\n');
-      } else {
-        // REST API mode
-        await this.executeViaREST(command);
-      }
+    if (this.isConnected && this.backend.getConnected()) {
+      // Web Worker backend - commands are sent in real-time
+      this.backend.sendInput(command + '\r\n');
     } else {
-      this.terminal.write(`\x1b[31m[ERROR]\x1b[0m Backend not connected\r\n`);
-      this.writePrompt();
+      // Fallback to direct execution
+      await this.executeViaREST(command);
     }
   }
 
   private async executeViaREST(command: string): Promise<void> {
     try {
-      // Execute command via REST API
-      const result = await this.restBackend.executeCommand(command, this.currentDirectory);
+      // Execute command via Web Worker backend
+      const result = await this.backend.executeCommand(command, this.currentDirectory);
       
       // Display output with error detection
       if (result.exitCode !== 0) {
@@ -339,8 +305,8 @@ class ClayWebTerminal {
       if (command.startsWith('cd ')) {
         const dir = command.substring(3).trim();
         if (dir === '~' || dir === '') {
-          const info = await this.restBackend.getSystemInfo();
-          this.currentDirectory = info?.homeDir || '/';
+          const info = await this.backend.getSystemInfo();
+          this.currentDirectory = info?.homeDir || '/home/user';
         } else if (dir.startsWith('/')) {
           this.currentDirectory = dir;
         } else {
@@ -392,7 +358,7 @@ class ClayWebTerminal {
       const fixCommand = await this.aiAssistant.quickFix(this.lastError.command, this.lastError.output);
       if (fixCommand) {
         this.terminal.write(`\x1b[33m[AI]\x1b[0m Executing fix: ${fixCommand}\r\n`);
-        if (this.useWebSocket && this.backend.getConnected()) {
+        if (this.backend.getConnected()) {
           this.backend.sendInput(fixCommand + '\r\n');
         } else {
           await this.executeViaREST(fixCommand);
@@ -419,7 +385,7 @@ class ClayWebTerminal {
       const fixCommand = await this.aiAssistant.quickFix(this.lastError.command, this.lastError.output);
       if (fixCommand) {
         this.terminal.write(`\x1b[33m[AI]\x1b[0m Executing fix: ${fixCommand}\r\n`);
-        if (this.useWebSocket && this.backend.getConnected()) {
+        if (this.backend.getConnected()) {
           this.backend.sendInput(fixCommand + '\r\n');
         } else {
           await this.executeViaREST(fixCommand);
@@ -448,7 +414,7 @@ class ClayWebTerminal {
       if (commands.length > 0 && this.aiControlEnabled) {
         for (const command of commands) {
           this.terminal.write(`\r\n\x1b[33m[AI Executing]\x1b[0m ${command}\r\n`);
-          if (this.useWebSocket && this.backend.getConnected()) {
+          if (this.backend.getConnected()) {
             this.backend.sendInput(command + '\r\n');
           } else {
             await this.executeCommand(command);
@@ -552,10 +518,11 @@ class ClayWebTerminal {
   }
 
   public writePrompt(): void {
-    // Only write prompt if not in WebSocket mode (WebSocket handles prompts)
-    if (!this.useWebSocket || !this.backend.getConnected()) {
+    // Web Worker backend handles prompts automatically
+    // Only write prompt if not connected
+    if (!this.backend.getConnected()) {
       const shortPath = this.currentDirectory.replace(/^\/home\/[^\/]+/, '~').replace(/^~/, '~');
-      const hostname = window.location.hostname || 'localhost';
+      const hostname = 'webvm';
       this.terminal.write(`\x1b[35muser@${hostname}\x1b[0m:\x1b[34m${shortPath}\x1b[0m$ `);
     }
   }

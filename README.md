@@ -2,37 +2,40 @@
 
 A beautiful, modern terminal built with Electron and Web technologies, inspired by [Hyper](https://hyper.is/). Clay provides a full-featured terminal experience that runs on Chromebooks (as a PWA) and desktop (Electron), allowing you to execute shell scripts, ADB commands, and any other terminal commands you need.
 
-**Now with Real Terminal Backend!** - The web version connects to your ChromeOS system via an Express.js backend server, providing real terminal execution on your local machine.
+**Now with WebVM Backend!** - The web version runs entirely in your browser using Web Workers. No separate backend server needed - everything runs locally in the browser!
 
 ## 🚀 Quick Start
 
-### Web Version with Real Terminal Backend
+### Web Version (Runs Entirely in Browser!)
 
-**For ChromeOS/Linux users who want real terminal access:**
+**No backend server needed - everything runs in your browser:**
 
-1. **Start the backend server:**
-   ```bash
-   cd backend
-   npm install
-   npm start
-   ```
+```bash
+cd web
+npm install
+npm run build
+npm run preview
+```
 
-2. **Build and serve the web frontend:**
-   ```bash
-   cd web
-   npm install
-   npm run build
-   # The backend server serves the frontend at http://localhost:3000
-   ```
+Or use the dev server:
+```bash
+cd web
+npm install
+npm run dev
+```
 
-3. **Or use the startup script:**
-   ```bash
-   ./start.sh
-   ```
+Then open `http://localhost:3000` in your browser.
 
-4. **Access the terminal:** Open `http://localhost:3000` in your browser
+**The backend runs automatically in a Web Worker** - no separate server process needed!
 
-The web terminal will automatically connect to the backend and provide real terminal access to your ChromeOS system!
+### Electron Version (Desktop App)
+
+For the desktop version:
+```bash
+npm install
+npm run build
+npm start
+```
 
 ### Web Version (Static PWA) - **60 Seconds!**
 For static deployment without backend:
@@ -194,7 +197,9 @@ This gives you a **real terminal experience** - not just command execution, but 
 
 ## Perfect for Chromebooks
 
-Clay Terminal is designed to work on Chromebooks where you might not have direct access to the native terminal. It provides a full-featured terminal experience that can run ADB commands, development tools, and any other shell scripts you need.
+Clay Terminal is designed to work on Chromebooks where you might not have direct access to the native terminal. The web version runs entirely in your browser using Web Workers - no backend server needed! It provides a terminal-like experience with a virtual filesystem and command execution, perfect for learning terminal commands and basic operations.
+
+**Note:** The web version runs in a browser sandbox, so it can't execute real system commands. For real terminal access, use the Electron desktop version.
 
 ## Inspiration
 

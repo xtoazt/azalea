@@ -1,0 +1,87 @@
+name: Deploy Clay Terminal
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+
+    - name: Install backend dependencies
+      run: |
+        cd backend
+        npm ci
+
+    - name: Install frontend dependencies
+      run: |
+        cd web
+        npm ci
+
+    - name: Build frontend
+      run: |
+        cd web
+        npm run build
+      env:
+        GITHUB_REPOSITORY: ${{ github.repository }}
+        NODE_ENV: production
+
+    - name: Bundle backend with frontend
+      run: |
+        mkdir -p web/dist/backend
+        cp -r backend/* web/dist/backend/ 2>/dev/null || true
+        rm -rf web/dist/backend/node_modules 2>/dev/null || true
+        rm -rf web/dist/backend/.git 2>/dev/null || true
+        
+        # Create startup instructions
+        cat > web/dist/START_BACKEND.md << 'EOF'
+        # Starting the Backend
+        
+        To use Clay Terminal with real terminal access, you need to start the backend server:
+        
+        ```bash
+        cd backend
+        npm install
+        npm start
+        ```
+        
+        Then open http://localhost:3000 in your browser.
+        
+        The backend will run on port 3000 by default.
+        EOF
+
+    - name: Setup Pages
+      uses: actions/configure-pages@v4
+
+    - name: Upload artifact
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: './web/dist'
+
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v4
+

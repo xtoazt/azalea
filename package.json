@@ -4,14 +4,21 @@
   "description": "Clay - A beautiful terminal built with Electron",
   "main": "dist/src/main.js",
   "scripts": {
-    "build": "tsc && npm run copy-files",
+    "build": "npm run build:electron",
+    "build:electron": "tsc && npm run copy-files",
+    "build:web": "cd web && npm install && npm run build",
+    "build:backend": "cd backend && npm install",
+    "build:all": "npm run build:backend && npm run build:web",
     "copy-files": "node -e \"const fs=require('fs');const path=require('path');fs.mkdirSync('dist/renderer',{recursive:true});fs.copyFileSync('renderer/index.html','dist/renderer/index.html');fs.copyFileSync('renderer/styles.css','dist/renderer/styles.css');\"",
     "start": "npm run build && electron .",
     "dev": "npm run copy-files && tsc && electron .",
     "watch": "tsc --watch",
     "web:dev": "cd web && npm run dev",
-    "web:build": "cd web && npm run build",
-    "web:install": "cd web && npm install"
+    "web:build": "npm run build:web",
+    "web:install": "cd web && npm install",
+    "backend:start": "cd backend && npm start",
+    "backend:dev": "cd backend && npm run dev",
+    "start:all": "npm run build:all && npm run backend:start"
   },
   "keywords": ["electron", "terminal", "shell"],
   "author": "",
@@ -25,4 +32,3 @@
     "typescript": "^5.3.3"
   }
 }
-

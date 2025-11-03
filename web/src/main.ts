@@ -48,12 +48,13 @@ class ClayWebTerminal {
         brightCyan: '#89dceb',
         brightWhite: '#f5e0dc'
       },
-      fontSize: 12,
-      fontFamily: 'Menlo, "DejaVu Sans Mono", "Lucida Console", monospace',
+      fontSize: 13,
+      fontFamily: '"SF Mono", "Menlo", "Monaco", "DejaVu Sans Mono", "Lucida Console", monospace',
       cursorBlink: true,
       cursorStyle: 'block',
       allowTransparency: true,
-      lineHeight: 1.5
+      lineHeight: 1.6,
+      letterSpacing: 0.3
     });
 
     this.fitAddon = new FitAddon();
@@ -71,6 +72,82 @@ class ClayWebTerminal {
 
     this.initializeTerminal();
     this.setupBackend();
+    this.initializeStatusBar();
+  }
+
+  private initializeStatusBar(): void {
+    // Update status indicators
+    this.updateBackendStatus('connecting');
+    this.updateAIStatus('idle');
+    
+    // Periodically check backend status
+    setInterval(() => {
+      if (this.backend) {
+        if (this.backend.getConnected()) {
+          this.updateBackendStatus('connected');
+        } else if (this.isConnected) {
+          this.updateBackendStatus('connecting');
+        } else {
+          this.updateBackendStatus('disconnected');
+        }
+      } else {
+        this.updateBackendStatus('disconnected');
+      }
+    }, 2000);
+  }
+
+  private updateBackendStatus(status: 'connected' | 'disconnected' | 'connecting' | 'error'): void {
+    const dot = document.getElementById('backend-dot');
+    const text = document.getElementById('backend-text');
+    
+    if (dot && text) {
+      dot.className = 'status-dot';
+      switch (status) {
+        case 'connected':
+          dot.classList.add('connected');
+          text.textContent = 'Backend';
+          break;
+        case 'disconnected':
+          dot.classList.add('disconnected');
+          text.textContent = 'No Backend';
+          break;
+        case 'connecting':
+          dot.classList.add('connecting');
+          text.textContent = 'Connecting...';
+          break;
+        case 'error':
+          dot.classList.add('error');
+          text.textContent = 'Error';
+          break;
+      }
+    }
+  }
+
+  private updateAIStatus(status: 'ready' | 'idle' | 'thinking' | 'error'): void {
+    const dot = document.getElementById('ai-dot');
+    const text = document.getElementById('ai-text');
+    
+    if (dot && text) {
+      dot.className = 'status-dot';
+      switch (status) {
+        case 'ready':
+          dot.classList.add('connected');
+          text.textContent = 'AI Ready';
+          break;
+        case 'idle':
+          dot.classList.add('disconnected');
+          text.textContent = 'AI Idle';
+          break;
+        case 'thinking':
+          dot.classList.add('connecting');
+          text.textContent = 'AI Thinking...';
+          break;
+        case 'error':
+          dot.classList.add('error');
+          text.textContent = 'AI Error';
+          break;
+      }
+    }
   }
 
   private initializeTerminal(): void {
@@ -80,21 +157,29 @@ class ClayWebTerminal {
     }
 
     this.terminal.open(terminalElement);
-    this.fitAddon.fit();
-
-    // Handle window resize
-    window.addEventListener('resize', () => {
+    
+    // Initial fit with a small delay to ensure proper rendering
+    setTimeout(() => {
       this.fitAddon.fit();
-      // Resize terminal in backend
-      if (this.backend && this.backend.getConnected()) {
-        const dimensions = this.fitAddon.proposeDimensions();
-        if (dimensions) {
-          this.backend.resize(dimensions.cols, dimensions.rows);
+    }, 100);
+
+    // Handle window resize with debouncing
+    let resizeTimeout: ReturnType<typeof setTimeout>;
+    window.addEventListener('resize', () => {
+      clearTimeout(resizeTimeout);
+      resizeTimeout = setTimeout(() => {
+        this.fitAddon.fit();
+        // Resize terminal in backend
+        if (this.backend && this.backend.getConnected()) {
+          const dimensions = this.fitAddon.proposeDimensions();
+          if (dimensions) {
+            this.backend.resize(dimensions.cols, dimensions.rows);
+          }
         }
-      }
+      }, 150);
     });
     
-    // Initial resize
+    // Additional resize after a longer delay to catch any layout shifts
     setTimeout(() => {
       this.fitAddon.fit();
       if (this.backend && this.backend.getConnected()) {
@@ -103,7 +188,7 @@ class ClayWebTerminal {
           this.backend.resize(dimensions.cols, dimensions.rows);
         }
       }
-    }, 100);
+    }, 500);
 
     // Handle keyboard input - send directly to backend
     this.terminal.onData((data: string) => {
@@ -164,7 +249,7 @@ class ClayWebTerminal {
     try {
       if (this.useBridge) {
         this.terminal.write('\r\n\x1b[33m[INFO]\x1b[0m Connecting to Clay Terminal Bridge...\r\n');
-        this.terminal.write('\x1b[33m[INFO]\x1b[0m Real system command execution enabled!\r\n');
+        this.terminal.write('\x1b[32m[INFO]\x1b[0m Real system command execution enabled!\r\n');
       } else {
         this.terminal.write('\r\n\x1b[33m[INFO]\x1b[0m Initializing WebVM backend...\r\n');
         this.terminal.write('\x1b[33m[INFO]\x1b[0m Running in browser (limited commands)\r\n');
@@ -189,6 +274,7 @@ class ClayWebTerminal {
       // Connect to backend
       await this.backend!.connect();
       this.isConnected = true;
+      this.updateBackendStatus('connected');
       
       // Get system info
       const info = await this.backend!.getSystemInfo();
@@ -221,11 +307,13 @@ class ClayWebTerminal {
         this.writePrompt();
       }
     } catch (error: any) {
+      this.updateBackendStatus('error');
       this.terminal.write(`\x1b[31m[ERROR]\x1b[0m ${error.message}\r\n`);
       if (this.useBridge) {
         this.terminal.write(`\x1b[33m[INFO]\x1b[0m Bridge connection failed\r\n`);
         this.terminal.write(`\x1b[33m[INFO]\x1b[0m Make sure bridge server is running:\r\n`);
-        this.terminal.write(`\x1b[33m[INFO]\x1b[0m   cd bridge && npm install && npm start\r\n`);
+        this.terminal.write(`\x1b[33m[INFO]\x1b[0m   Run: ./start-bridge.sh\r\n`);
+        this.terminal.write(`\x1b[33m[INFO]\x1b[0m   Or: cd bridge && npm start\r\n`);
       } else {
         this.terminal.write(`\x1b[33m[INFO]\x1b[0m WebVM backend initialization failed\r\n`);
       }
@@ -423,6 +511,7 @@ class ClayWebTerminal {
     if (!this.lastError || this.aiExecuting) return;
     
     this.aiExecuting = true;
+    this.updateAIStatus('thinking');
     this.terminal.write(`\r\n\x1b[36m[AI]\x1b[0m Auto-fixing error...\r\n`);
     
     try {
@@ -437,8 +526,10 @@ class ClayWebTerminal {
       }
     } catch (error: any) {
       this.terminal.write(`\x1b[31m[AI ERROR]\x1b[0m ${error.message}\r\n`);
+      this.updateAIStatus('error');
     } finally {
       this.aiExecuting = false;
+      this.updateAIStatus(this.aiControlEnabled ? 'ready' : 'idle');
     }
   }
 
@@ -450,6 +541,7 @@ class ClayWebTerminal {
     }
 
     this.aiExecuting = true;
+    this.updateAIStatus('thinking');
     this.terminal.write(`\r\n\x1b[36m[AI]\x1b[0m Diagnosing error...\r\n`);
     
     try {
@@ -464,48 +556,117 @@ class ClayWebTerminal {
       }
     } catch (error: any) {
       this.terminal.write(`\x1b[31m[AI ERROR]\x1b[0m ${error.message}\r\n`);
+      this.updateAIStatus('error');
       this.writePrompt();
     } finally {
       this.aiExecuting = false;
+      this.updateAIStatus(this.aiControlEnabled ? 'ready' : 'idle');
     }
   }
 
   private async handleAICommand(question: string): Promise<void> {
     this.aiExecuting = true;
-    this.terminal.write(`\r\n\x1b[36m[AI]\x1b[0m Thinking...\r\n`);
+    this.updateAIStatus('thinking');
     
     try {
-      const response = await this.aiAssistant.askQuestion(question, this.currentDirectory, this.commandHistory);
+      // Detect if this is a command request (action) vs a question
+      const isCommandRequest = this.isCommandRequest(question);
       
-      // Parse and display markdown response
-      this.displayMarkdownResponse(response);
-      
-      // Extract and execute commands from AI response
-      const commands = this.extractCommands(response);
-      if (commands.length > 0 && this.aiControlEnabled) {
-        for (const command of commands) {
-          this.terminal.write(`\r\n\x1b[33m[AI Executing]\x1b[0m ${command}\r\n`);
-          if (this.backend && this.backend.getConnected()) {
-            this.backend.sendInput(command + '\r\n');
-          } else {
-            await this.executeCommand(command);
+      if (isCommandRequest) {
+        // Silent execution mode - just do it, don't explain
+        this.terminal.write(`\r\n\x1b[36m[AI]\x1b[0m Executing...\r\n`);
+        const response = await this.aiAssistant.askQuestion(
+          `User wants to: ${question}. Provide ONLY the command(s) to execute, no explanations. Format in code blocks.`,
+          this.currentDirectory,
+          this.commandHistory
+        );
+        
+        // Extract and execute commands silently
+        const commands = this.extractCommands(response);
+        if (commands.length > 0) {
+          for (const command of commands) {
+            // Execute silently without showing command
+            if (this.backend && this.backend.getConnected()) {
+              this.backend.sendInput(command + '\r\n');
+            } else {
+              await this.executeCommand(command);
+            }
+            await new Promise(resolve => setTimeout(resolve, 300));
           }
-          await new Promise(resolve => setTimeout(resolve, 500)); // Small delay between commands
+        } else {
+          this.terminal.write(`\x1b[33m[AI]\x1b[0m No command found in response\r\n`);
         }
-      } else if (commands.length > 0) {
-        // Show commands but don't execute (user control)
-        this.terminal.write(`\r\n\x1b[33m[AI Suggested]\x1b[0m Commands found:\r\n`);
-        commands.forEach(cmd => {
-          this.terminal.write(`  ${cmd}\r\n`);
-        });
-        this.terminal.write(`\x1b[33m[Tip]\x1b[0m Type "@ai enable" to let AI auto-execute commands\r\n`);
+      } else {
+        // Question mode - respond with explanation
+        this.terminal.write(`\r\n\x1b[36m[AI]\x1b[0m Thinking...\r\n`);
+        const response = await this.aiAssistant.askQuestion(question, this.currentDirectory, this.commandHistory);
+        
+        // Parse and display markdown response
+        this.displayMarkdownResponse(response);
+        
+        // Extract and execute commands from AI response (if AI control enabled)
+        const commands = this.extractCommands(response);
+        if (commands.length > 0 && this.aiControlEnabled) {
+          for (const command of commands) {
+            this.terminal.write(`\r\n\x1b[33m[AI Executing]\x1b[0m ${command}\r\n`);
+            if (this.backend && this.backend.getConnected()) {
+              this.backend.sendInput(command + '\r\n');
+            } else {
+              await this.executeCommand(command);
+            }
+            await new Promise(resolve => setTimeout(resolve, 500));
+          }
+        } else if (commands.length > 0) {
+          // Show commands but don't execute (user control)
+          this.terminal.write(`\r\n\x1b[33m[AI Suggested]\x1b[0m Commands found:\r\n`);
+          commands.forEach(cmd => {
+            this.terminal.write(`  ${cmd}\r\n`);
+          });
+          this.terminal.write(`\x1b[33m[Tip]\x1b[0m Type "@ai enable" to let AI auto-execute commands\r\n`);
+        }
       }
     } catch (error: any) {
       this.terminal.write(`\x1b[31m[AI ERROR]\x1b[0m ${error.message}\r\n`);
+      this.updateAIStatus('error');
     } finally {
       this.aiExecuting = false;
+      this.updateAIStatus(this.aiControlEnabled ? 'ready' : 'idle');
       this.writePrompt();
     }
+  }
+
+  private isCommandRequest(text: string): boolean {
+    // Detect if this is a command/action request vs a question
+    const commandKeywords = [
+      'enable', 'disable', 'start', 'stop', 'run', 'execute', 'install', 'setup',
+      'configure', 'connect', 'enable adb', 'enable connection', 'turn on',
+      'turn off', 'activate', 'deactivate', 'create', 'make', 'do', 'perform'
+    ];
+    
+    const questionKeywords = [
+      'what', 'how', 'why', 'when', 'where', 'who', 'which', 'explain', 'describe',
+      'tell me', 'help me understand', 'what is', 'how do', 'why does', '?'
+    ];
+    
+    const lowerText = text.toLowerCase();
+    
+    // Check for question keywords first
+    if (questionKeywords.some(keyword => lowerText.includes(keyword))) {
+      return false;
+    }
+    
+    // Check for command keywords
+    if (commandKeywords.some(keyword => lowerText.includes(keyword))) {
+      return true;
+    }
+    
+    // If it's short and doesn't contain question mark, likely a command
+    if (text.length < 50 && !text.includes('?')) {
+      return true;
+    }
+    
+    // Default to question
+    return false;
   }
 
   private displayMarkdownResponse(text: string): void {
@@ -562,27 +723,59 @@ class ClayWebTerminal {
   private extractCommands(text: string): string[] {
     const commands: string[] = [];
     
-    // Extract from code blocks
-    const codeBlockRegex = /```(?:bash|sh|zsh|cmd|powershell)?\n([\s\S]*?)```/g;
+    // Extract from code blocks (prioritize bash/sh/zsh blocks)
+    const codeBlockRegex = /```(?:bash|sh|zsh|cmd|powershell|shell)?\n([\s\S]*?)```/g;
     let match;
     while ((match = codeBlockRegex.exec(text)) !== null) {
       const code = match[1].trim();
       const lines = code.split('\n');
       lines.forEach(line => {
         const cmd = line.trim();
-        if (cmd && !cmd.startsWith('#') && !cmd.startsWith('$') && cmd.length < 200) {
+        // Skip comments, prompts, and empty lines
+        if (cmd && 
+            !cmd.startsWith('#') && 
+            !cmd.startsWith('$') && 
+            !cmd.startsWith('>') &&
+            !cmd.startsWith('//') &&
+            cmd.length > 0 && 
+            cmd.length < 500) {
           commands.push(cmd);
         }
       });
     }
     
-    // Extract inline code that looks like commands
-    const inlineCodeRegex = /`([^`]+)`/g;
-    while ((match = inlineCodeRegex.exec(text)) !== null) {
-      const cmd = match[1].trim();
-      if (cmd && cmd.length < 200 && !cmd.includes('\n') && /^[a-zA-Z0-9_\-./]/.test(cmd)) {
-        commands.push(cmd);
+    // Extract inline code that looks like commands (if no code blocks found)
+    if (commands.length === 0) {
+      const inlineCodeRegex = /`([^`]+)`/g;
+      while ((match = inlineCodeRegex.exec(text)) !== null) {
+        const cmd = match[1].trim();
+        if (cmd && 
+            cmd.length < 500 && 
+            !cmd.includes('\n') && 
+            /^[a-zA-Z0-9_\-./]/.test(cmd) &&
+            !cmd.includes('http') &&
+            !cmd.includes('www')) {
+          commands.push(cmd);
+        }
       }
+    }
+    
+    // Also check for commands after "run:", "execute:", "command:" patterns
+    if (commands.length === 0) {
+      const commandPatterns = [
+        /(?:run|execute|command|do):\s*([^\n]+)/gi,
+        /`([^`]+)`/g,
+        /(?:adb|sudo|npm|git|python|node|bash|sh)\s+[^\n]+/gi
+      ];
+      
+      commandPatterns.forEach(pattern => {
+        while ((match = pattern.exec(text)) !== null) {
+          const cmd = match[1]?.trim() || match[0]?.trim();
+          if (cmd && cmd.length > 0 && cmd.length < 500 && !cmd.startsWith('$')) {
+            commands.push(cmd);
+          }
+        }
+      });
     }
     
     return commands;
@@ -599,9 +792,14 @@ class ClayWebTerminal {
   }
 
   private printWelcomeMessage(): void {
-    this.terminal.write(`\x1b[32mClay Terminal\x1b[0m - The best terminal experience\r\n`);
-    this.terminal.write(`Type \x1b[33m@ai <question>\x1b[0m to ask the AI assistant\r\n`);
-    this.terminal.write(`Type \x1b[33mhelp\x1b[0m for available commands\r\n`);
+    this.terminal.write('\r\n');
+    this.terminal.write(`\x1b[1m\x1b[35m╔════════════════════════════════════════╗\x1b[0m\r\n`);
+    this.terminal.write(`\x1b[1m\x1b[35m║\x1b[0m  \x1b[1m\x1b[36mClay Terminal\x1b[0m - The best terminal experience  \x1b[1m\x1b[35m║\x1b[0m\r\n`);
+    this.terminal.write(`\x1b[1m\x1b[35m╚════════════════════════════════════════╝\x1b[0m\r\n`);
+    this.terminal.write('\r\n');
+    this.terminal.write(`  \x1b[33m✨\x1b[0m Type \x1b[33m@ai <question>\x1b[0m to ask the AI assistant\r\n`);
+    this.terminal.write(`  \x1b[33m✨\x1b[0m Type \x1b[33mhelp\x1b[0m for available commands\r\n`);
+    this.terminal.write(`  \x1b[33m✨\x1b[0m Check status indicators at the top\r\n`);
     this.terminal.write('\r\n');
   }
 
@@ -769,8 +967,21 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!modelList) return;
     modelList.innerHTML = '';
     
-    const models = (window as any).clayTerminal.aiAssistant.getAvailableModels();
-    const currentModel = (window as any).clayTerminal.aiAssistant.getCurrentModel();
+    const terminal = (window as any).clayTerminal;
+    if (!terminal || !terminal.aiAssistant) return;
+    
+    const models = terminal.aiAssistant.getAvailableModels();
+    const currentModel = terminal.aiAssistant.getCurrentModel();
+    
+    // Update model button text
+    const modelBtn = document.getElementById('model-btn');
+    if (modelBtn) {
+      const currentModelData = models.find((m: any) => m.id === currentModel);
+      if (currentModelData) {
+        modelBtn.textContent = `🤖 ${currentModelData.name}`;
+        modelBtn.classList.add('active');
+      }
+    }
     
     models.forEach((model: any) => {
       const item = document.createElement('div');
@@ -783,11 +994,20 @@ document.addEventListener('DOMContentLoaded', () => {
         ${model.id === currentModel ? '<span class="checkmark">✓</span>' : ''}
       `;
       item.addEventListener('click', () => {
-        (window as any).clayTerminal.aiAssistant.setModel(model.id);
+        terminal.aiAssistant.setModel(model.id);
         modelSelector!.style.display = 'none';
-        // Show confirmation
-        (window as any).clayTerminal.terminal.write(`\r\n\x1b[32m[Model]\x1b[0m Switched to ${model.name}\r\n`);
-        (window as any).clayTerminal.writePrompt();
+        // Update button
+        if (modelBtn) {
+          const updatedModel = models.find((m: any) => m.id === model.id);
+          if (updatedModel) {
+            modelBtn.textContent = `🤖 ${updatedModel.name}`;
+          }
+        }
+        // Show confirmation in terminal
+        terminal.terminal.write(`\r\n\x1b[32m[Model]\x1b[0m Switched to ${model.name}\r\n`);
+        if (!terminal.useBridge) {
+          terminal.writePrompt();
+        }
       });
       modelList.appendChild(item);
     });

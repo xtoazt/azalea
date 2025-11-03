@@ -21,6 +21,16 @@
         </div>
         <div class="terminal-title">Clay Terminal</div>
         <div class="header-actions">
+          <div class="status-indicators">
+            <div class="status-item" id="backend-status">
+              <span class="status-dot" id="backend-dot"></span>
+              <span class="status-text" id="backend-text">Backend</span>
+            </div>
+            <div class="status-item" id="ai-status">
+              <span class="status-dot" id="ai-dot"></span>
+              <span class="status-text" id="ai-text">AI</span>
+            </div>
+          </div>
           <button class="model-btn" id="model-btn" title="Select AI Model">
             🤖 Model
           </button>
@@ -49,7 +59,7 @@
     </div>
     <div class="loading-overlay" id="loading">
       <div class="loading-spinner"></div>
-      <p>Initializing WebVM...</p>
+      <p>Initializing Terminal...</p>
     </div>
   </div>
   <script type="module" src="/src/main.ts"></script>

@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#1e1e2e">
+  <meta name="description" content="Clay Terminal - The best terminal experience in your browser">
+  <title>Clay Terminal</title>
+  <link rel="stylesheet" href="/src/styles.css">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+</head>
+<body>
+  <div class="app-container">
+    <div class="terminal-container">
+      <div class="terminal-header">
+        <div class="terminal-controls">
+          <span class="control close" id="window-close"></span>
+          <span class="control minimize" id="window-minimize"></span>
+          <span class="control maximize" id="window-maximize"></span>
+        </div>
+        <div class="terminal-title">Clay Terminal</div>
+        <div class="header-actions">
+          <button class="install-btn" id="install-btn" style="display: none;">
+            📥 Install
+          </button>
+        </div>
+      </div>
+      <div class="terminal-body" id="terminal"></div>
+    </div>
+    <div class="loading-overlay" id="loading">
+      <div class="loading-spinner"></div>
+      <p>Initializing WebVM...</p>
+    </div>
+  </div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
+

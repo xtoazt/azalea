@@ -8,7 +8,10 @@
     "copy-files": "node -e \"const fs=require('fs');const path=require('path');fs.mkdirSync('dist/renderer',{recursive:true});fs.copyFileSync('renderer/index.html','dist/renderer/index.html');fs.copyFileSync('renderer/styles.css','dist/renderer/styles.css');\"",
     "start": "npm run build && electron .",
     "dev": "npm run copy-files && tsc && electron .",
-    "watch": "tsc --watch"
+    "watch": "tsc --watch",
+    "web:dev": "cd web && npm run dev",
+    "web:build": "cd web && npm run build",
+    "web:install": "cd web && npm install"
   },
   "keywords": ["electron", "terminal", "shell"],
   "author": "",

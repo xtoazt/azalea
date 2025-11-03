@@ -1,0 +1,245 @@
+/* Catppuccin Mocha Color Palette */
+:root {
+  --ctp-base: #1e1e2e;
+  --ctp-mantle: #181825;
+  --ctp-crust: #11111b;
+  --ctp-text: #cdd6f4;
+  --ctp-subtext0: #a6adc8;
+  --ctp-surface0: #313244;
+  --ctp-surface1: #45475a;
+  --ctp-blue: #89b4fa;
+  --ctp-mauve: #cba6f7;
+  --ctp-red: #f38ba8;
+  --ctp-green: #a6e3a1;
+  --ctp-yellow: #f9e2af;
+  --ctp-sky: #89dceb;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Menlo', 'DejaVu Sans Mono', 'Lucida Console', monospace;
+  background: var(--ctp-base);
+  color: var(--ctp-text);
+  overflow: hidden;
+  height: 100vh;
+  width: 100vw;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.app-container {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  position: relative;
+}
+
+.terminal-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  flex: 1;
+  background: var(--ctp-base);
+}
+
+.terminal-header {
+  background: var(--ctp-crust);
+  padding: 0;
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--ctp-surface0);
+  user-select: none;
+  height: 34px;
+  -webkit-app-region: drag;
+}
+
+.terminal-controls {
+  display: flex;
+  gap: 8px;
+  padding: 8px 12px;
+  -webkit-app-region: no-drag;
+}
+
+.control {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.control.close {
+  background: var(--ctp-red);
+}
+
+.control.minimize {
+  background: var(--ctp-yellow);
+}
+
+.control.maximize {
+  background: var(--ctp-green);
+}
+
+.control:hover {
+  transform: scale(1.1);
+}
+
+.terminal-title {
+  flex: 1;
+  text-align: center;
+  color: var(--ctp-subtext0);
+  font-size: 11px;
+  font-weight: normal;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding-right: 12px;
+  -webkit-app-region: no-drag;
+}
+
+.install-btn {
+  background: rgba(203, 166, 247, 0.15);
+  border: 1px solid rgba(203, 166, 247, 0.3);
+  color: var(--ctp-mauve);
+  padding: 4px 12px;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.install-btn:hover {
+  background: rgba(203, 166, 247, 0.25);
+  border-color: rgba(203, 166, 247, 0.5);
+}
+
+.terminal-body {
+  flex: 1;
+  padding: 12px 14px;
+  overflow: hidden;
+  background: var(--ctp-base);
+}
+
+/* xterm.js styling */
+.xterm {
+  font-feature-settings: "liga" 0;
+  position: relative;
+  user-select: none;
+  -ms-user-select: none;
+  -webkit-user-select: none;
+}
+
+.xterm-viewport {
+  background-color: var(--ctp-base) !important;
+  overflow-y: auto;
+  overflow-x: hidden;
+  cursor: text;
+  position: absolute;
+  right: 0;
+  left: 0;
+  top: 0;
+  bottom: 0;
+}
+
+.xterm-screen {
+  position: relative;
+}
+
+.xterm-cursor-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.xterm .xterm-scrollbar {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 10px;
+}
+
+.xterm .xterm-scrollbar-thumb {
+  background-color: var(--ctp-surface0);
+  border-radius: 5px;
+}
+
+.xterm .xterm-scrollbar-thumb:hover {
+  background-color: var(--ctp-surface1);
+}
+
+/* Loading overlay */
+.loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--ctp-base);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  color: var(--ctp-text);
+}
+
+.loading-overlay.hidden {
+  display: none;
+}
+
+.loading-spinner {
+  width: 50px;
+  height: 50px;
+  border: 4px solid var(--ctp-surface0);
+  border-top-color: var(--ctp-mauve);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 20px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.loading-overlay p {
+  color: var(--ctp-subtext0);
+  font-size: 14px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .terminal-body {
+    padding: 10px 12px;
+  }
+
+  .terminal-header {
+    height: 32px;
+  }
+}
+
+/* Selection */
+::selection {
+  background: rgba(203, 166, 247, 0.3);
+  color: var(--ctp-text);
+}
+
+::-moz-selection {
+  background: rgba(203, 166, 247, 0.3);
+  color: var(--ctp-text);
+}
+

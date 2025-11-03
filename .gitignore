@@ -1,8 +1,26 @@
 node_modules/
 dist/
+release/
 *.log
 .DS_Store
+.env
+.env.local
+*.local
+
+# Web build
+web/node_modules/
+web/dist/
+web/.vite/
+
+# IDE
+.vscode/
+.idea/
 *.swp
 *.swo
-*~
 
+# Electron
+out/
+app/
+
+# OS
+Thumbs.db

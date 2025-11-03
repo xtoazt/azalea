@@ -672,25 +672,43 @@ class ClayWebTerminal {
     if (command.startsWith('@ai ')) {
       const question = command.substring(4).trim();
       
+      // Check if AI assistant is available
+      if (!this.aiAssistant) {
+        this.terminal.write(`\r\n\x1b[31m[ERROR]\x1b[0m AI assistant not initialized\r\n`);
+        this.writePrompt();
+        return;
+      }
+      
       // Handle special AI commands
       if (question === 'enable') {
         this.aiControlEnabled = true;
-        this.terminal.write(`\x1b[32m[AI]\x1b[0m AI control enabled - AI will auto-execute commands\r\n`);
+        this.terminal.write(`\r\n\x1b[32m[AI]\x1b[0m AI control enabled - AI will auto-execute commands\r\n`);
+        this.updateAIStatus('ready');
         this.writePrompt();
         return;
       } else if (question === 'disable') {
         this.aiControlEnabled = false;
-        this.terminal.write(`\x1b[33m[AI]\x1b[0m AI control disabled - manual execution required\r\n`);
+        this.terminal.write(`\r\n\x1b[33m[AI]\x1b[0m AI control disabled - manual execution required\r\n`);
+        this.updateAIStatus('idle');
         this.writePrompt();
         return;
       } else if (question === 'status') {
-        this.terminal.write(`\x1b[36m[AI Status]\x1b[0m Control: ${this.aiControlEnabled ? 'ENABLED' : 'DISABLED'}\r\n`);
+        this.terminal.write(`\r\n\x1b[36m[AI Status]\x1b[0m Control: ${this.aiControlEnabled ? 'ENABLED' : 'DISABLED'}\r\n`);
         this.terminal.write(`\x1b[36m[AI Status]\x1b[0m Model: ${this.aiAssistant.getCurrentModel()}\r\n`);
         this.terminal.write(`\x1b[36m[Session]\x1b[0m Commands: ${this.sessionCommands.length}\r\n`);
         this.writePrompt();
         return;
       } else if (question === 'share' || question === 'share link') {
         await this.copyShareLink();
+        return;
+      }
+      
+      if (!question) {
+        this.terminal.write(`\r\n\x1b[33m[INFO]\x1b[0m Usage: @ai <question>\r\n`);
+        this.terminal.write(`\x1b[33m[INFO]\x1b[0m Examples:\r\n`);
+        this.terminal.write(`\x1b[33m[INFO]\x1b[0m   @ai what is bash?\r\n`);
+        this.terminal.write(`\x1b[33m[INFO]\x1b[0m   @ai enable adb connection\r\n`);
+        this.writePrompt();
         return;
       }
       
@@ -843,6 +861,12 @@ class ClayWebTerminal {
   }
 
   private async handleAICommand(question: string): Promise<void> {
+    if (!this.aiAssistant) {
+      this.terminal.write(`\r\n\x1b[31m[ERROR]\x1b[0m AI assistant is not available\r\n`);
+      this.writePrompt();
+      return;
+    }
+    
     this.aiExecuting = true;
     this.updateAIStatus('thinking');
     
@@ -904,11 +928,17 @@ class ClayWebTerminal {
         }
       }
     } catch (error: any) {
-      this.terminal.write(`\x1b[31m[AI ERROR]\x1b[0m ${error.message}\r\n`);
+      this.terminal.write(`\r\n\x1b[31m[AI ERROR]\x1b[0m ${error.message || 'Failed to connect to AI service'}\r\n`);
+      this.terminal.write(`\x1b[33m[INFO]\x1b[0m AI service may be unavailable. Please try again.\r\n`);
       this.updateAIStatus('error');
+      setTimeout(() => {
+        this.updateAIStatus(this.aiControlEnabled ? 'ready' : 'idle');
+      }, 3000);
     } finally {
       this.aiExecuting = false;
-      this.updateAIStatus(this.aiControlEnabled ? 'ready' : 'idle');
+      if (this.aiAssistant) {
+        this.updateAIStatus(this.aiControlEnabled ? 'ready' : 'idle');
+      }
       this.writePrompt();
     }
   }

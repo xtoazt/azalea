@@ -1644,6 +1644,18 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       });
     }
-  });
+    
+    // Initialize Lucide icons after DOM is ready
+    if (typeof (window as any).lucide !== 'undefined') {
+      (window as any).lucide.createIcons();
+    }
+    
+    // Refresh icons periodically
+    setInterval(() => {
+      if (typeof (window as any).lucide !== 'undefined') {
+        (window as any).lucide.createIcons();
+      }
+    }, 2000);
+  }, 100);
 });
 

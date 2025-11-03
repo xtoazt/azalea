@@ -224,21 +224,32 @@ class ClayTerminal {
       }
     }
 
-    if (this.isExecuting && e.key !== 'Enter') {
-      return; // Ignore input while executing (unless it's a PTY session)
-    }
-
+    // Always allow Enter to be processed, even if executing (to handle PTY sessions)
     if (e.key === 'Enter') {
       e.preventDefault();
+      
+      // If executing and no PTY session, don't process new commands
+      if (this.isExecuting && !this.ptySession) {
+        return;
+      }
+      
       const command = this.commandInput.value.trim();
-      if (command) {
+      if (command && !this.isExecuting) {
         await this.executeCommand(command);
-      } else {
+      } else if (!command) {
         this.addPrompt();
       }
       this.commandInput.value = '';
       this.historyIndex = -1;
-    } else if (e.key === 'ArrowUp') {
+      return;
+    }
+    
+    // Ignore other input while executing (unless it's a PTY session)
+    if (this.isExecuting && !this.ptySession) {
+      return;
+    }
+    
+    if (e.key === 'ArrowUp') {
       e.preventDefault();
       this.navigateHistory(-1);
     } else if (e.key === 'ArrowDown') {
@@ -340,13 +351,15 @@ class ClayTerminal {
     
     if (needsStreaming) {
       await this.executeStreamingCommand(command);
+      // Note: isExecuting is reset in stream.onClose callback
     } else {
       await this.executeSimpleCommand(command);
+      this.isExecuting = false;
+      this.addPrompt();
     }
-
-    this.isExecuting = false;
-    this.addPrompt();
+    
     await this.updateDirectory();
+    this.commandInput.focus();
   }
 
   private needsStreaming(command: string): boolean {
@@ -400,6 +413,7 @@ class ClayTerminal {
       });
 
       stream.onClose((code: number) => {
+        this.isExecuting = false;
         if (code !== 0) {
           this.addOutputLine(`Process exited with code ${code}`, 'error');
           this.lastError = {
@@ -409,15 +423,21 @@ class ClayTerminal {
           };
           // Auto-show quick fix option
           this.showQuickFixOption();
+        } else {
+          this.addPrompt();
         }
+        this.commandInput.focus();
       });
     } catch (error: any) {
+      this.isExecuting = false;
       this.addOutputLine(`Error: ${error.message}`, 'error');
       this.lastError = {
         command,
         error: error.message,
         timestamp: Date.now()
       };
+      this.addPrompt();
+      this.commandInput.focus();
     }
   }
 
@@ -449,6 +469,7 @@ class ClayTerminal {
       });
 
       this.ptySession.onExit((code: number) => {
+        this.isExecuting = false;
         if (code !== 0) {
           this.lastError = {
             command,
@@ -459,8 +480,8 @@ class ClayTerminal {
           this.showQuickFixOption();
         }
         this.ptySession = null;
-        this.isExecuting = false;
         this.addPrompt();
+        this.commandInput.focus();
       });
 
       // Write command to PTY

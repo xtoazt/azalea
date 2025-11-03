@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "dev:backend": "cd ../backend && npm run dev"
   },
   "dependencies": {
     "xterm": "^5.3.0",

@@ -2,9 +2,40 @@
 
 A beautiful, modern terminal built with Electron and Web technologies, inspired by [Hyper](https://hyper.is/). Clay provides a full-featured terminal experience that runs on Chromebooks (as a PWA) and desktop (Electron), allowing you to execute shell scripts, ADB commands, and any other terminal commands you need.
 
-## 🚀 Quick Deploy
+**Now with Real Terminal Backend!** - The web version connects to your ChromeOS system via an Express.js backend server, providing real terminal execution on your local machine.
 
-### Web Version (PWA for Chromebooks) - **60 Seconds!**
+## 🚀 Quick Start
+
+### Web Version with Real Terminal Backend
+
+**For ChromeOS/Linux users who want real terminal access:**
+
+1. **Start the backend server:**
+   ```bash
+   cd backend
+   npm install
+   npm start
+   ```
+
+2. **Build and serve the web frontend:**
+   ```bash
+   cd web
+   npm install
+   npm run build
+   # The backend server serves the frontend at http://localhost:3000
+   ```
+
+3. **Or use the startup script:**
+   ```bash
+   ./start.sh
+   ```
+
+4. **Access the terminal:** Open `http://localhost:3000` in your browser
+
+The web terminal will automatically connect to the backend and provide real terminal access to your ChromeOS system!
+
+### Web Version (Static PWA) - **60 Seconds!**
+For static deployment without backend:
 1. **Enable GitHub Pages:** Repository → Settings → Pages → Source: "GitHub Actions"
 2. **Push to main:** `git push origin main`
 3. **Done!** Visit: `https://yourusername.github.io/clay/`

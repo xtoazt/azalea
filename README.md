@@ -2,31 +2,40 @@
 
 A beautiful, modern terminal built with Electron and Web technologies, inspired by [Hyper](https://hyper.is/). Clay provides a full-featured terminal experience that runs on Chromebooks (as a PWA) and desktop (Electron), allowing you to execute shell scripts, ADB commands, and any other terminal commands you need.
 
-**Now with WebVM Backend!** - The web version runs entirely in your browser using Web Workers. No separate backend server needed - everything runs locally in the browser!
+**Now with Real System Access!** - The web version can connect to a local bridge server for **real system command execution** and **real filesystem access**. Or run in browser-only mode with Web Workers as a fallback.
 
 ## 🚀 Quick Start
 
-### Web Version (Runs Entirely in Browser!)
+### Web Version with Real System Access
 
-**No backend server needed - everything runs in your browser:**
+**For real system command execution and filesystem access:**
 
-```bash
-cd web
-npm install
-npm run build
-npm run preview
-```
+1. **Start the bridge server:**
+   ```bash
+   ./start-bridge.sh
+   ```
+   Or manually:
+   ```bash
+   cd bridge
+   npm install
+   npm start
+   ```
 
-Or use the dev server:
-```bash
-cd web
-npm install
-npm run dev
-```
+2. **Start the web terminal:**
+   ```bash
+   cd web
+   npm install
+   npm run dev
+   ```
 
-Then open `http://localhost:3000` in your browser.
+3. **Open `http://localhost:3000`** - The terminal will automatically connect to the bridge!
 
-**The backend runs automatically in a Web Worker** - no separate server process needed!
+**With bridge running, you get:**
+- ✅ Real system command execution (full bash)
+- ✅ Real filesystem access (your actual files)
+- ✅ All commands work (not just a limited set)
+
+**Without bridge:** Falls back to Web Worker mode (browser-only, limited commands)
 
 ### Electron Version (Desktop App)
 
@@ -197,9 +206,20 @@ This gives you a **real terminal experience** - not just command execution, but 
 
 ## Perfect for Chromebooks
 
-Clay Terminal is designed to work on Chromebooks where you might not have direct access to the native terminal. The web version runs entirely in your browser using Web Workers - no backend server needed! It provides a terminal-like experience with a virtual filesystem and command execution, perfect for learning terminal commands and basic operations.
+Clay Terminal is designed to work on Chromebooks where you might not have direct access to the native terminal. 
 
-**Note:** The web version runs in a browser sandbox, so it can't execute real system commands. For real terminal access, use the Electron desktop version.
+**With Bridge Server (Recommended):**
+- ✅ Real system command execution (full bash)
+- ✅ Real filesystem access (your actual files)
+- ✅ All commands work (not just a limited set)
+- ✅ Interactive programs (vim, nano, htop, etc.)
+
+**Without Bridge (Fallback):**
+- Browser-only execution (Web Worker)
+- Virtual filesystem (in-memory)
+- Limited command set
+
+**To get real system access:** Start the bridge server with `./start-bridge.sh` or install it as a system service.
 
 ## Inspiration
 

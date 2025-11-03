@@ -2,12 +2,18 @@ import { Terminal } from 'xterm';
 import { FitAddon } from 'xterm-addon-fit';
 import { WebLinksAddon } from 'xterm-addon-web-links';
 import { CanvasAddon } from 'xterm-addon-canvas';
+import { BridgeBackend } from './bridge-backend';
 import { WebWorkerBackendWrapper } from './backend-worker-wrapper';
+
+// Helper to get hostname (fallback for browser)
+function getHostname(): string {
+  return typeof window !== 'undefined' ? window.location.hostname : 'localhost';
+}
 
 class ClayWebTerminal {
   private terminal: Terminal;
   private fitAddon: FitAddon;
-  private backend: WebWorkerBackendWrapper;
+  private backend: BridgeBackend | WebWorkerBackendWrapper | null = null;
   private isConnected: boolean = false;
   private commandHistory: string[] = [];
   private historyIndex: number = -1;
@@ -17,6 +23,7 @@ class ClayWebTerminal {
   private lastError: { command: string; output: string; timestamp: number } | null = null;
   private aiControlEnabled: boolean = false;
   private aiExecuting: boolean = false;
+  private useBridge: boolean = false;
 
   constructor() {
     this.terminal = new Terminal({
@@ -56,8 +63,8 @@ class ClayWebTerminal {
 
     this.aiAssistant = new SimpleAIAssistant();
     
-    // Use Web Worker backend (runs entirely in browser)
-    this.backend = new WebWorkerBackendWrapper();
+    // Try to connect to bridge first (real system access), fallback to Web Worker
+    this.initializeBackend();
 
     // Expose to window for UI access
     (window as any).clayTerminal = this;
@@ -79,7 +86,7 @@ class ClayWebTerminal {
     window.addEventListener('resize', () => {
       this.fitAddon.fit();
       // Resize terminal in backend
-      if (this.backend.getConnected()) {
+      if (this.backend && this.backend.getConnected()) {
         const dimensions = this.fitAddon.proposeDimensions();
         if (dimensions) {
           this.backend.resize(dimensions.cols, dimensions.rows);
@@ -90,7 +97,7 @@ class ClayWebTerminal {
     // Initial resize
     setTimeout(() => {
       this.fitAddon.fit();
-      if (this.backend.getConnected()) {
+      if (this.backend && this.backend.getConnected()) {
         const dimensions = this.fitAddon.proposeDimensions();
         if (dimensions) {
           this.backend.resize(dimensions.cols, dimensions.rows);
@@ -98,10 +105,10 @@ class ClayWebTerminal {
       }
     }, 100);
 
-    // Handle keyboard input - send directly to Web Worker backend
+    // Handle keyboard input - send directly to backend
     this.terminal.onData((data: string) => {
-      if (this.isConnected && this.backend.getConnected()) {
-        // Send directly to Web Worker backend for real-time terminal
+      if (this.isConnected && this.backend && this.backend.getConnected()) {
+        // Send directly to backend for real-time terminal
         this.backend.sendInput(data);
       } else {
         // Handle locally if not connected
@@ -124,45 +131,104 @@ class ClayWebTerminal {
     this.printWelcomeMessage();
   }
 
-  private async setupBackend(): Promise<void> {
+  private async initializeBackend(): Promise<void> {
+    // Try to connect to bridge server first (for real system access)
+    const bridge = new BridgeBackend();
+    
     try {
-      this.terminal.write('\r\n\x1b[33m[INFO]\x1b[0m Initializing WebVM backend...\r\n');
+      const isHealthy = await bridge.healthCheck();
+      if (isHealthy) {
+        console.log('✅ Bridge server found, using real system access');
+        this.backend = bridge;
+        this.useBridge = true;
+        return;
+      }
+    } catch (error) {
+      console.log('⚠️  Bridge server not available');
+    }
+    
+    // Try to start bridge automatically (if possible)
+    // Note: This won't work from browser due to security restrictions
+    // User needs to start bridge manually or install as service
+    
+    // Fallback to Web Worker (browser-only)
+    this.backend = new WebWorkerBackendWrapper();
+    this.useBridge = false;
+  }
+
+  private async setupBackend(): Promise<void> {
+    if (!this.backend) {
+      await this.initializeBackend();
+    }
+    
+    try {
+      if (this.useBridge) {
+        this.terminal.write('\r\n\x1b[33m[INFO]\x1b[0m Connecting to Clay Terminal Bridge...\r\n');
+        this.terminal.write('\x1b[33m[INFO]\x1b[0m Real system command execution enabled!\r\n');
+      } else {
+        this.terminal.write('\r\n\x1b[33m[INFO]\x1b[0m Initializing WebVM backend...\r\n');
+        this.terminal.write('\x1b[33m[INFO]\x1b[0m Running in browser (limited commands)\r\n');
+      }
       
       // Set up output handler
-      this.backend.onOutput((data: string) => {
+      this.backend!.onOutput((data: string) => {
         this.terminal.write(data);
       });
       
-      this.backend.onExit((code: number, signal: number) => {
+      this.backend!.onExit((code: number, signal: number) => {
         this.terminal.write(`\r\n\x1b[33m[Process exited]\x1b[0m Code: ${code}\r\n`);
-        this.writePrompt();
+        if (!this.useBridge) {
+          this.writePrompt();
+        }
       });
       
-      this.backend.onError((error: string) => {
+      this.backend!.onError((error: string) => {
         this.terminal.write(`\r\n\x1b[31m[Connection Error]\x1b[0m ${error}\r\n`);
       });
       
-      // Connect to Web Worker backend
-      await this.backend.connect();
+      // Connect to backend
+      await this.backend!.connect();
       this.isConnected = true;
       
       // Get system info
-      const info = await this.backend.getSystemInfo();
+      const info = await this.backend!.getSystemInfo();
       if (info) {
-        this.currentDirectory = info.homeDir || info.cwd || '/home/user';
+        this.currentDirectory = info?.homeDir || info?.cwd || (this.useBridge ? (info?.homeDir || '/') : '/home/user');
         this.terminal.write(`\x1b[32m[Connected]\x1b[0m Platform: ${info.platform}\r\n`);
         this.terminal.write(`\x1b[32m[Connected]\x1b[0m Shell: ${info.shell}\r\n`);
-        this.terminal.write(`\x1b[32m[Connected]\x1b[0m Running in WebVM (browser)\r\n`);
+        if (this.useBridge) {
+          this.terminal.write(`\x1b[32m[Connected]\x1b[0m Real system access: ✅\r\n`);
+          this.terminal.write(`\x1b[32m[Connected]\x1b[0m Full bash support: ✅\r\n`);
+        } else {
+          this.terminal.write(`\x1b[32m[Connected]\x1b[0m Running in WebVM (browser)\r\n`);
+        }
       } else {
-        this.currentDirectory = '/home/user';
+        this.currentDirectory = this.useBridge ? (info?.homeDir || '/') : '/home/user';
       }
       
-      this.terminal.write('\x1b[32m[INFO]\x1b[0m WebVM backend ready!\r\n');
+      if (this.useBridge) {
+        this.terminal.write('\x1b[32m[INFO]\x1b[0m Bridge backend ready - Full system access!\r\n');
+      } else {
+        this.terminal.write('\x1b[32m[INFO]\x1b[0m WebVM backend ready!\r\n');
+        this.terminal.write('\x1b[33m[Tip]\x1b[0m Start bridge server for real system access:\r\n');
+        this.terminal.write('\x1b[33m[Tip]\x1b[0m   Run: ./start-bridge.sh\r\n');
+        this.terminal.write('\x1b[33m[Tip]\x1b[0m   Or: cd bridge && npm start\r\n');
+        this.terminal.write('\x1b[33m[Tip]\x1b[0m   Auto-start: cd bridge && npm run install-service\r\n');
+      }
+      
       this.hideLoading();
-      this.writePrompt();
+      if (!this.useBridge) {
+        this.writePrompt();
+      }
     } catch (error: any) {
       this.terminal.write(`\x1b[31m[ERROR]\x1b[0m ${error.message}\r\n`);
-      this.terminal.write(`\x1b[33m[INFO]\x1b[0m WebVM backend initialization failed\r\n`);
+      if (this.useBridge) {
+        this.terminal.write(`\x1b[33m[INFO]\x1b[0m Bridge connection failed\r\n`);
+        this.terminal.write(`\x1b[33m[INFO]\x1b[0m Make sure bridge server is running:\r\n`);
+        this.terminal.write(`\x1b[33m[INFO]\x1b[0m   cd bridge && npm install && npm start\r\n`);
+      } else {
+        this.terminal.write(`\x1b[33m[INFO]\x1b[0m WebVM backend initialization failed\r\n`);
+      }
       this.hideLoading();
       this.writePrompt();
     }
@@ -272,8 +338,8 @@ class ClayWebTerminal {
     }
 
     // Execute command
-    if (this.isConnected && this.backend.getConnected()) {
-      // Web Worker backend - commands are sent in real-time
+    if (this.isConnected && this.backend && this.backend.getConnected()) {
+      // Backend - commands are sent in real-time
       this.backend.sendInput(command + '\r\n');
     } else {
       // Fallback to direct execution
@@ -283,7 +349,10 @@ class ClayWebTerminal {
 
   private async executeViaREST(command: string): Promise<void> {
     try {
-      // Execute command via Web Worker backend
+      // Execute command via backend
+      if (!this.backend) {
+        throw new Error('Backend not initialized');
+      }
       const result = await this.backend.executeCommand(command, this.currentDirectory);
       
       // Display output with error detection
@@ -305,8 +374,10 @@ class ClayWebTerminal {
       if (command.startsWith('cd ')) {
         const dir = command.substring(3).trim();
         if (dir === '~' || dir === '') {
-          const info = await this.backend.getSystemInfo();
-          this.currentDirectory = info?.homeDir || '/home/user';
+          if (this.backend) {
+            const info = await this.backend.getSystemInfo();
+            this.currentDirectory = info?.homeDir || (this.useBridge ? (info?.homeDir || '/') : '/home/user');
+          }
         } else if (dir.startsWith('/')) {
           this.currentDirectory = dir;
         } else {
@@ -358,7 +429,7 @@ class ClayWebTerminal {
       const fixCommand = await this.aiAssistant.quickFix(this.lastError.command, this.lastError.output);
       if (fixCommand) {
         this.terminal.write(`\x1b[33m[AI]\x1b[0m Executing fix: ${fixCommand}\r\n`);
-        if (this.backend.getConnected()) {
+        if (this.backend && this.backend.getConnected()) {
           this.backend.sendInput(fixCommand + '\r\n');
         } else {
           await this.executeViaREST(fixCommand);
@@ -385,7 +456,7 @@ class ClayWebTerminal {
       const fixCommand = await this.aiAssistant.quickFix(this.lastError.command, this.lastError.output);
       if (fixCommand) {
         this.terminal.write(`\x1b[33m[AI]\x1b[0m Executing fix: ${fixCommand}\r\n`);
-        if (this.backend.getConnected()) {
+        if (this.backend && this.backend.getConnected()) {
           this.backend.sendInput(fixCommand + '\r\n');
         } else {
           await this.executeViaREST(fixCommand);
@@ -414,7 +485,7 @@ class ClayWebTerminal {
       if (commands.length > 0 && this.aiControlEnabled) {
         for (const command of commands) {
           this.terminal.write(`\r\n\x1b[33m[AI Executing]\x1b[0m ${command}\r\n`);
-          if (this.backend.getConnected()) {
+          if (this.backend && this.backend.getConnected()) {
             this.backend.sendInput(command + '\r\n');
           } else {
             await this.executeCommand(command);
@@ -518,11 +589,11 @@ class ClayWebTerminal {
   }
 
   public writePrompt(): void {
-    // Web Worker backend handles prompts automatically
-    // Only write prompt if not connected
-    if (!this.backend.getConnected()) {
+    // Bridge backend handles prompts automatically
+    // Only write prompt if not connected or using Web Worker
+    if (!this.backend || !this.backend.getConnected() || !this.useBridge) {
       const shortPath = this.currentDirectory.replace(/^\/home\/[^\/]+/, '~').replace(/^~/, '~');
-      const hostname = 'webvm';
+      const hostname = this.useBridge ? getHostname() : 'webvm';
       this.terminal.write(`\x1b[35muser@${hostname}\x1b[0m:\x1b[34m${shortPath}\x1b[0m$ `);
     }
   }

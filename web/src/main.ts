@@ -6,7 +6,7 @@ import { BridgeBackend } from './bridge-backend';
 import { WebWorkerBackendWrapper } from './backend-worker-wrapper';
 import { SessionEncoder } from './session-encoder';
 import { initializeHTML } from './html-generator';
-import './styles.css';
+import './app.css';
 
 // Helper to get hostname (fallback for browser)
 function getHostname(): string {
@@ -1589,171 +1589,254 @@ class UIBuilder {
   }
 }
 
-// Initialize HTML structure first
+// New Landing + Terminal router using daisyUI
 initializeHTML();
 
-// Initialize when DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
-  // Ensure HTML structure is initialized
-  initializeHTML();
-  
-  // Build UI dynamically
-  const uiBuilder = new UIBuilder();
-  
-  // Initialize terminal after UI is built
-  setTimeout(() => {
-    uiBuilder.initializeTerminal();
-    
-    // Model selector UI
-    const modelBtn = document.getElementById('model-btn');
-  const modelSelector = document.getElementById('model-selector');
-  const closeModelSelector = document.getElementById('close-model-selector');
-  const modelList = document.getElementById('model-list');
-  const quickFixBtn = document.getElementById('quick-fix-btn');
-  const shareBtn = document.getElementById('share-btn');
-  
-  if (modelBtn && modelSelector && closeModelSelector && modelList) {
-    modelBtn.addEventListener('click', () => {
-      modelSelector.style.display = 'flex';
-      renderModelList();
-    });
-    
-    closeModelSelector.addEventListener('click', () => {
-      modelSelector.style.display = 'none';
-    });
-    
-    modelSelector.addEventListener('click', (e) => {
-      if (e.target === modelSelector) {
-        modelSelector.style.display = 'none';
-      }
-    });
-  }
-  
-  function renderModelList() {
-    if (!modelList) return;
-    modelList.innerHTML = '';
-    
-    const terminal = (window as any).clayTerminal;
-    if (!terminal || !terminal.aiAssistant) return;
-    
-    const models = terminal.aiAssistant.getAvailableModels();
-    const currentModel = terminal.aiAssistant.getCurrentModel();
-    
-    // Update model button text
-    const modelBtn = document.getElementById('model-btn');
-    if (modelBtn) {
-      const currentModelData = models.find((m: any) => m.id === currentModel);
-      if (currentModelData) {
-        const modelBtnIcon = modelBtn.querySelector('[data-lucide]');
-        const modelBtnText = modelBtn.querySelector('span');
-        if (modelBtnText) {
-          modelBtnText.textContent = currentModelData.name;
-        }
-        if (typeof (window as any).lucide !== 'undefined') {
-          (window as any).lucide.createIcons();
-        }
-        modelBtn.classList.add('active');
-      }
-    }
-    
-    models.forEach((model: any) => {
-      const item = document.createElement('div');
-      item.className = `model-item ${model.id === currentModel ? 'active' : ''}`;
-      item.innerHTML = `
-        <div class="model-info">
-          <div class="model-name">${model.name}</div>
-          <div class="model-desc">${model.description}</div>
-        </div>
-        ${model.id === currentModel ? '<span class="checkmark">✓</span>' : ''}
-      `;
-      item.addEventListener('click', () => {
-        terminal.aiAssistant.setModel(model.id);
-        modelSelector!.style.display = 'none';
-        // Update button
-        if (modelBtn) {
-          const updatedModel = models.find((m: any) => m.id === model.id);
-          if (updatedModel) {
-            const modelBtnText = modelBtn.querySelector('span');
-            if (modelBtnText) {
-              modelBtnText.textContent = updatedModel.name;
-            }
-            if (typeof (window as any).lucide !== 'undefined') {
-              (window as any).lucide.createIcons();
-            }
-          }
-        }
-        // Show confirmation in terminal
-        terminal.terminal.write(`\r\n\x1b[32m[Model]\x1b[0m Switched to ${model.name}\r\n`);
-        if (!terminal.useBridge) {
-          terminal.writePrompt();
-        }
-      });
-      modelList.appendChild(item);
-    });
-  }
-  
-  // Quick fix button
-  if (quickFixBtn) {
-    quickFixBtn.addEventListener('click', () => {
-      (window as any).clayTerminal.manualQuickFix();
-    });
-  }
-  
-  // Share button
-  if (shareBtn) {
-    shareBtn.addEventListener('click', async () => {
-      await (window as any).clayTerminal.copyShareLink();
-    });
-    
-    // Show badge with command count if there are commands
-    setInterval(() => {
-      const terminal = (window as any).clayTerminal;
-      if (terminal && terminal.sessionCommands) {
-        const count = terminal.sessionCommands.length;
-        if (count > 0) {
-          shareBtn.setAttribute('data-count', count.toString());
-          shareBtn.classList.add('has-commands');
-        } else {
-          shareBtn.removeAttribute('data-count');
-          shareBtn.classList.remove('has-commands');
-        }
-      }
-    }, 1000);
-  }
-  
-    // Initialize Lucide icons after DOM is ready
-    if (typeof (window as any).lucide !== 'undefined') {
-      (window as any).lucide.createIcons();
-    }
-    
-    // Refresh icons periodically
-    setInterval(() => {
-      if (typeof (window as any).lucide !== 'undefined') {
-        (window as any).lucide.createIcons();
-      }
-    }, 2000);
-  }, 100);
-  
-  // PWA install handler
-  let deferredPrompt: any = null;
-  
-  window.addEventListener('beforeinstallprompt', (e) => {
-    e.preventDefault();
-    deferredPrompt = e;
-    const installBtn = document.getElementById('install-btn');
-    if (installBtn) {
-      installBtn.style.display = 'block';
-      installBtn.addEventListener('click', async () => {
-        if (deferredPrompt) {
-          deferredPrompt.prompt();
-          const { outcome } = await deferredPrompt.userChoice;
-          if (outcome === 'accepted') {
-            installBtn.style.display = 'none';
-          }
-          deferredPrompt = null;
-        }
-      });
-    }
-  });
+function getDaisyThemes(): string[] {
+  return ['light','dark','cupcake','bumblebee','emerald','corporate','synthwave','retro','cyberpunk','valentine','halloween','garden','forest','aqua','lofi','pastel','fantasy','wireframe','black','luxury','dracula','cmyk','autumn','business','acid','lemonade','night','coffee','winter','dim','nord','sunset','caramellatte','abyss','silk'];
+}
+
+function applyTheme(theme: string) {
+  document.documentElement.setAttribute('data-theme', theme);
+}
+
+let deferredPrompt: any = null;
+let isInstalled = false;
+
+// Check if app is already installed
+if (window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone) {
+  isInstalled = true;
+}
+
+// Listen for beforeinstallprompt event
+window.addEventListener('beforeinstallprompt', (e: Event) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  updateInstallButton();
 });
+
+// Listen for app installed event
+window.addEventListener('appinstalled', () => {
+  isInstalled = true;
+  deferredPrompt = null;
+  updateInstallButton();
+  showInstallSuccess();
+});
+
+function updateInstallButton() {
+  const installBtn = document.getElementById('install-pwa-btn');
+  if (installBtn) {
+    if (isInstalled) {
+      installBtn.style.display = 'none';
+    } else if (deferredPrompt) {
+      installBtn.style.display = 'block';
+    } else {
+      installBtn.style.display = 'none';
+    }
+  }
+}
+
+function showInstallSuccess() {
+  const root = document.getElementById('app-root');
+  if (!root) return;
+  
+  const toast = document.createElement('div');
+  toast.className = 'toast toast-top toast-end';
+  toast.innerHTML = `
+    <div class="alert alert-success">
+      <span>✓ Clay Terminal installed successfully!</span>
+    </div>
+  `;
+  root.appendChild(toast);
+  
+  setTimeout(() => {
+    toast.remove();
+  }, 3000);
+}
+
+function renderLanding(): void {
+  const root = document.getElementById('app-root')!;
+  root.innerHTML = '';
+  const wrapper = document.createElement('div');
+  wrapper.className = 'min-h-screen flex flex-col bg-base-100';
+
+  const navbar = document.createElement('div');
+  navbar.className = 'navbar bg-base-200 px-4';
+  navbar.innerHTML = `
+    <div class="flex-1">
+      <a class="btn btn-ghost text-xl">Clay</a>
+    </div>
+    <div class="flex-none gap-2">
+      <button id="install-pwa-btn" class="btn btn-primary btn-sm" style="display: none;">
+        Install App
+      </button>
+      <select id="theme-select" class="select select-bordered select-sm">
+        ${getDaisyThemes().map(t => `<option value="${t}">${t}</option>`).join('')}
+      </select>
+    </div>
+  `;
+
+  const hero = document.createElement('div');
+  hero.className = 'hero py-10';
+  hero.innerHTML = `
+    <div class="hero-content text-center">
+      <div class="max-w-2xl">
+        <h1 class="text-5xl font-bold">A professional terminal for the web</h1>
+        <p class="py-6 text-base-content/70">Clay gives you a powerful, AI-augmented terminal experience right in your browser or Electron app. Install on ChromeOS for offline access.</p>
+        <div class="flex gap-3 justify-center flex-wrap">
+          <button id="open-terminal" class="btn btn-primary">Open Terminal</button>
+          <a href="https://www.npmjs.com/package/clay-util" target="_blank" class="btn btn-outline">Documentation</a>
+          <button id="install-pwa-btn-hero" class="btn btn-accent" style="display: none;">
+            📱 Install App
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  const dashboard = document.createElement('div');
+  dashboard.className = 'px-6 pb-10';
+  dashboard.innerHTML = `
+    <div class="grid gap-6 md:grid-cols-3">
+      <div class="card bg-base-200 shadow">
+        <div class="card-body">
+          <h2 class="card-title">Now</h2>
+          <div id="clock" class="text-3xl font-semibold"></div>
+          <div id="date" class="opacity-70"></div>
+        </div>
+      </div>
+      <div class="card bg-base-200 shadow md:col-span-2">
+        <div class="card-body">
+          <h2 class="card-title">Updates</h2>
+          <ul class="list-disc ml-5 space-y-1" id="updates-list">
+            <li>New daisyUI-based UI shell</li>
+            <li>Theme switcher with 30+ themes</li>
+            <li>Terminal route moved to #terminal</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  `;
+
+  wrapper.appendChild(navbar);
+  wrapper.appendChild(hero);
+  wrapper.appendChild(dashboard);
+  root.appendChild(wrapper);
+
+  const themeSelect = document.getElementById('theme-select') as HTMLSelectElement;
+  themeSelect.addEventListener('change', () => applyTheme(themeSelect.value));
+  applyTheme(themeSelect.value);
+
+  const openBtn = document.getElementById('open-terminal') as HTMLButtonElement;
+  openBtn.addEventListener('click', () => {
+    location.hash = '#terminal';
+    renderTerminalView();
+  });
+
+  // PWA Install handlers
+  const installBtnNav = document.getElementById('install-pwa-btn') as HTMLButtonElement;
+  const installBtnHero = document.getElementById('install-pwa-btn-hero') as HTMLButtonElement;
+  
+  async function handleInstall() {
+    if (!deferredPrompt) {
+      // Already installed or not available
+      if (isInstalled) {
+        showInstallSuccess();
+      }
+      return;
+    }
+    
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    
+    if (outcome === 'accepted') {
+      console.log('User accepted the install prompt');
+    } else {
+      console.log('User dismissed the install prompt');
+    }
+    
+    deferredPrompt = null;
+    updateInstallButton();
+    if (installBtnHero) installBtnHero.style.display = 'none';
+  }
+  
+  if (installBtnNav) {
+    installBtnNav.addEventListener('click', handleInstall);
+  }
+  if (installBtnHero) {
+    installBtnHero.addEventListener('click', handleInstall);
+  }
+  
+  updateInstallButton();
+  if (installBtnHero) {
+    if (isInstalled) {
+      installBtnHero.style.display = 'none';
+    } else if (deferredPrompt) {
+      installBtnHero.style.display = 'block';
+    }
+  }
+
+  function tickClock() {
+    const now = new Date();
+    const timeEl = document.getElementById('clock')!;
+    const dateEl = document.getElementById('date')!;
+    timeEl.textContent = now.toLocaleTimeString();
+    dateEl.textContent = now.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  }
+  tickClock();
+  setInterval(tickClock, 1000);
+}
+
+function renderTerminalView(): void {
+  const root = document.getElementById('app-root')!;
+  root.innerHTML = '';
+  const layout = document.createElement('div');
+  layout.className = 'min-h-screen flex flex-col bg-base-100';
+  layout.innerHTML = `
+    <div class="navbar bg-base-200 px-4">
+      <div class="flex-1">
+        <button id="back-home" class="btn btn-ghost">← Dashboard</button>
+      </div>
+      <div class="flex-none">
+        <select id="theme-select" class="select select-bordered select-sm">
+          ${getDaisyThemes().map(t => `<option value="${t}">${t}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div class="flex-1">
+      <div id="terminal" class="w-full h-full"></div>
+    </div>
+  `;
+  root.appendChild(layout);
+
+  const themeSelect = document.getElementById('theme-select') as HTMLSelectElement;
+  themeSelect.addEventListener('change', () => applyTheme(themeSelect.value));
+  applyTheme(themeSelect.value);
+
+  const back = document.getElementById('back-home') as HTMLButtonElement;
+  back.addEventListener('click', () => {
+    location.hash = '';
+    renderLanding();
+  });
+
+  // Initialize terminal into #terminal
+  setTimeout(() => {
+    try {
+      new (ClayWebTerminal as any)();
+    } catch (e) {
+      console.error(e);
+    }
+  }, 50);
+}
+
+function route() {
+  if (location.hash === '#terminal') {
+    renderTerminalView();
+  } else {
+    renderLanding();
+  }
+}
+
+window.addEventListener('hashchange', route);
+document.addEventListener('DOMContentLoaded', route);
 

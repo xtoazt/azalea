@@ -1,0 +1,10 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Base layout helpers */
+html, body, #app-root {
+  height: 100%;
+}
+
+

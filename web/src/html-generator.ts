@@ -30,7 +30,7 @@ export function generateHTML(): string {
 <body>
   <div id="app-root"></div>
   <script src="https://unpkg.com/lucide@latest"></script>
-  <script type="module" src="${base}src/main.ts"></script>
+  <script type="module" src="/src/main.ts"></script>
 </body>
 </html>`;
 }

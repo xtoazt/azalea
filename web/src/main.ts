@@ -906,25 +906,37 @@ class ClayWebTerminal {
         this.updateBridgeStatus('connecting');
         this.updateWebSocketStatus('connecting');
         
-        // Check for Linux Files access
-        const linuxFilesPath = await this.checkLinuxFilesAccess();
-        if (linuxFilesPath) {
-          this.terminal.write(`\r\n\x1b[32m[INFO]\x1b[0m Linux Files access detected: ${linuxFilesPath}\r\n`);
-          this.terminal.write(`\x1b[33m[INFO]\x1b[0m Files will be saved to Linux Files folder when possible.\r\n`);
+        // Actually connect to the WebSocket
+        try {
+          await this.setupBackend();
+          
+          // Check for Linux Files access
+          const linuxFilesPath = await this.checkLinuxFilesAccess();
+          if (linuxFilesPath) {
+            this.terminal.write(`\r\n\x1b[32m[INFO]\x1b[0m Linux Files access detected: ${linuxFilesPath}\r\n`);
+            this.terminal.write(`\x1b[33m[INFO]\x1b[0m Files will be saved to Linux Files folder when possible.\r\n`);
+          }
+        } catch (connectError) {
+          console.error('[ERROR] Failed to connect to bridge WebSocket:', connectError);
+          this.updateBridgeStatus('error');
+          this.updateWebSocketStatus('error');
+          // Fall through to retry logic
+          throw connectError;
         }
         
         return;
       }
     } catch (error) {
-      console.log('[INFO] Bridge server not available, will retry...');
+      console.log('[INFO] Bridge server not available, will retry...', error);
     }
     
     // If bridge not available, try to connect in background
     this.updateBridgeStatus('disconnected');
+    this.updateWebSocketStatus('disconnected');
     
-    // Try connecting every 3 seconds
+    // Try connecting every 3 seconds (more aggressive on ChromeOS)
     const bridgeRetryInterval = setInterval(async () => {
-      if (!this.useBridge) {
+      if (!this.useBridge || !this.isConnected) {
         try {
           const bridge = new BridgeBackend();
           const isHealthy = await bridge.healthCheck();
@@ -934,13 +946,20 @@ class ClayWebTerminal {
             this.useBridge = true;
             this.updateBridgeStatus('connecting');
             this.updateWebSocketStatus('connecting');
-            await this.setupBackend();
-            clearInterval(bridgeRetryInterval);
             
-            // Show message to user
-            this.terminal.write('\r\n\x1b[32m[INFO]\x1b[0m Connected to real system terminal!\r\n');
-            this.terminal.write('\x1b[33m[INFO]\x1b[0m All commands now execute on your system.\r\n');
-            this.writePrompt();
+            try {
+              await this.setupBackend();
+              clearInterval(bridgeRetryInterval);
+              
+              // Show message to user
+              this.terminal.write('\r\n\x1b[32m[INFO]\x1b[0m Connected to real system terminal!\r\n');
+              this.terminal.write('\x1b[33m[INFO]\x1b[0m All commands now execute on your system.\r\n');
+              this.writePrompt();
+            } catch (connectError) {
+              console.error('[ERROR] Failed to connect WebSocket:', connectError);
+              this.updateBridgeStatus('error');
+              this.updateWebSocketStatus('error');
+            }
           }
         } catch (error) {
           // Continue trying
@@ -1000,12 +1019,22 @@ class ClayWebTerminal {
       });
       
       this.backend!.onError((error: string) => {
+        // Write error on new line to prevent cursor shift
         this.terminal.write(`\r\n\x1b[31m[Connection Error]\x1b[0m ${error}\r\n`);
+        // Ensure cursor is reset after error
+        this.writePrompt();
       });
       
       // Connect to backend
-      await this.backend!.connect();
-      this.isConnected = true;
+      try {
+        await this.backend!.connect();
+        this.isConnected = true;
+      } catch (connectError: any) {
+        this.isConnected = false;
+        this.updateBridgeStatus('error');
+        this.updateWebSocketStatus('error');
+        throw connectError;
+      }
       
       if (this.useBridge) {
         this.updateBridgeStatus('connected');
@@ -1394,8 +1423,8 @@ class ClayWebTerminal {
       
       // Display output with error detection
       if (result.exitCode !== 0) {
-        // Error detected - show in red
-        this.terminal.write(`\x1b[31m${result.output}\x1b[0m`);
+        // Error detected - show in red, ensure proper line handling
+        this.terminal.write(`\r\n\x1b[31m${result.output}\x1b[0m\r\n`);
         this.lastError = {
           command,
           output: result.output,
@@ -1429,31 +1458,27 @@ class ClayWebTerminal {
       
       this.writePrompt();
     } catch (error: any) {
-      this.terminal.write(`\x1b[31m[ERROR]\x1b[0m ${error.message}\r\n`);
+      // Write error on new line to prevent cursor shift
+      this.terminal.write(`\r\n\x1b[31m[ERROR]\x1b[0m ${error.message}\r\n`);
       this.lastError = {
         command,
         output: error.message,
         timestamp: Date.now()
       };
       this.showErrorBanner(command, error.message);
+      // Always reset cursor after error
       this.writePrompt();
     }
   }
 
   private showErrorBanner(command: string, error: string): void {
-    const banner = document.getElementById('error-banner');
-    const errorText = document.getElementById('error-text');
-    if (banner && errorText) {
-      errorText.textContent = `Error in "${command}": ${error.substring(0, 100)}${error.length > 100 ? '...' : ''}`;
-      banner.style.display = 'flex';
-    }
+    // Don't show UI banner that might shift layout - errors are already in terminal
+    // Just log for debugging
+    console.log('[Error]', command, error);
   }
 
   private hideErrorBanner(): void {
-    const banner = document.getElementById('error-banner');
-    if (banner) {
-      banner.style.display = 'none';
-    }
+    // No-op - no banner to hide
   }
 
   private async autoQuickFix(): Promise<void> {
@@ -1801,9 +1826,12 @@ class ClayWebTerminal {
     // Bridge backend handles prompts automatically
     // Only write prompt if not connected or using Web Worker
     if (!this.backend || !this.backend.getConnected() || !this.useBridge) {
+      // Always ensure we're on a new line before writing prompt
+      // This prevents cursor shifting when errors occur
       const shortPath = this.currentDirectory.replace(/^\/home\/[^\/]+/, '~').replace(/^~/, '~');
       const hostname = this.useBridge ? getHostname() : 'webvm';
-      this.terminal.write(`\x1b[35muser@${hostname}\x1b[0m:\x1b[34m${shortPath}\x1b[0m$ `);
+      // Use \r\n to ensure proper line break and cursor positioning
+      this.terminal.write(`\r\n\x1b[35muser@${hostname}\x1b[0m:\x1b[34m${shortPath}\x1b[0m$ `);
     }
   }
 

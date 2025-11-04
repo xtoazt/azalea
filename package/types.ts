@@ -1,11 +1,9 @@
 /**
- * Type definitions for Clay Terminal
+ * Type definitions for Clay Terminal Backend API
+ * Pure backend - no UI dependencies
  */
 
-export interface ClayTerminalConfig {
-  /** DOM element to mount the terminal */
-  container: HTMLElement;
-  
+export interface ClayBackendConfig {
   /** WebSocket URL for bridge backend (optional, for real system access) */
   bridgeUrl?: string;
   
@@ -15,35 +13,9 @@ export interface ClayTerminalConfig {
   /** AI API configuration */
   aiConfig?: AIAssistantConfig;
   
-  /** Terminal theme (Catppuccin Mocha colors) */
-  theme?: TerminalTheme;
-  
-  /** Font size in pixels */
-  fontSize?: number;
-  
-  /** Font family */
-  fontFamily?: string;
-  
-  /** Callback for terminal output */
-  onOutput?: OutputCallback;
-  
-  /** Callback for errors */
-  onError?: ErrorCallback;
-  
-  /** Callback for status changes */
-  onStatusChange?: StatusCallback;
-  
   /** Auto-start bridge connection */
   autoConnectBridge?: boolean;
   
-  /** Custom CSS classes */
-  className?: string;
-  
-  /** Show welcome message on initialization */
-  showWelcome?: boolean;
-}
-
-export interface ClayTerminalOptions {
   /** Enable session sharing */
   enableSharing?: boolean;
   
@@ -53,30 +25,8 @@ export interface ClayTerminalOptions {
   /** Maximum history size */
   maxHistory?: number;
   
-  /** Show welcome message */
-  showWelcome?: boolean;
-}
-
-export interface TerminalTheme {
-  background?: string;
-  foreground?: string;
-  cursor?: string;
-  black?: string;
-  red?: string;
-  green?: string;
-  yellow?: string;
-  blue?: string;
-  magenta?: string;
-  cyan?: string;
-  white?: string;
-  brightBlack?: string;
-  brightRed?: string;
-  brightGreen?: string;
-  brightYellow?: string;
-  brightBlue?: string;
-  brightMagenta?: string;
-  brightCyan?: string;
-  brightWhite?: string;
+  /** Current working directory */
+  cwd?: string;
 }
 
 export interface AIAssistantConfig {
@@ -101,8 +51,8 @@ export interface TerminalBackend {
   connect(): Promise<void>;
   disconnect(): void;
   sendInput(data: string): void;
-  executeCommand(command: string, cwd?: string): Promise<{ output: string; exitCode: number }>;
-  getSystemInfo(): Promise<any>;
+  executeCommand(command: string, cwd?: string): Promise<CommandResult>;
+  getSystemInfo(): Promise<SystemInfo | null>;
   resize(cols: number, rows: number): void;
   getConnected(): boolean;
   onOutput(callback: OutputCallback): void;
@@ -110,10 +60,36 @@ export interface TerminalBackend {
   onError(callback: ErrorCallback): void;
 }
 
+export interface CommandResult {
+  output: string;
+  exitCode: number;
+  error?: string;
+  stdout?: string;
+  stderr?: string;
+}
+
+export interface SystemInfo {
+  platform: string;
+  shell: string;
+  cwd: string;
+  homeDir: string;
+  user?: string;
+  hostname?: string;
+  arch?: string;
+}
+
+export interface ProcessInfo {
+  pid: number;
+  command: string;
+  args: string[];
+  cwd: string;
+  env?: Record<string, string>;
+}
+
 export type OutputCallback = (data: string) => void;
 export type ErrorCallback = (error: string) => void;
 export type StatusCallback = (status: {
   backend: 'connected' | 'disconnected' | 'connecting' | 'error';
-  ai: 'ready' | 'idle' | 'thinking' | 'error';
+  ai?: 'ready' | 'idle' | 'thinking' | 'error';
 }) => void;
-
+export type CommandCallback = (result: CommandResult) => void;

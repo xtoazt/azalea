@@ -2,7 +2,7 @@
  * Bridge Backend - Connects to local Node.js bridge server for real system access
  */
 
-import type { TerminalBackend, OutputCallback, ErrorCallback } from '../types';
+import type { TerminalBackend, OutputCallback, ErrorCallback, CommandResult } from '../types';
 
 export class BridgeBackend implements TerminalBackend {
   private ws: WebSocket | null = null;
@@ -129,7 +129,7 @@ export class BridgeBackend implements TerminalBackend {
     return this.sessionId;
   }
 
-  async executeCommand(command: string, cwd?: string): Promise<{ output: string; exitCode: number }> {
+  async executeCommand(command: string, cwd?: string): Promise<CommandResult> {
     try {
       const response = await fetch('http://127.0.0.1:8765/api/execute', {
         method: 'POST',
@@ -142,12 +142,16 @@ export class BridgeBackend implements TerminalBackend {
       const data = await response.json();
       return {
         output: data.output || '',
-        exitCode: data.exitCode || (data.success ? 0 : 1)
+        exitCode: data.exitCode || (data.success ? 0 : 1),
+        error: data.error,
+        stdout: data.stdout,
+        stderr: data.stderr
       };
     } catch (error: any) {
       return {
         output: `Error: ${error.message}`,
-        exitCode: 1
+        exitCode: 1,
+        error: error.message
       };
     }
   }

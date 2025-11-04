@@ -8,7 +8,7 @@
  * 3. Use a simple command execution backend
  */
 
-import type { TerminalBackend, OutputCallback, ErrorCallback } from '../types';
+import type { TerminalBackend, OutputCallback, ErrorCallback, CommandResult } from '../types';
 
 export class WebWorkerBackend implements TerminalBackend {
   private sessionId: string | null = null;
@@ -80,16 +80,19 @@ export class WebWorkerBackend implements TerminalBackend {
     return this.isConnected;
   }
 
-  async executeCommand(command: string, cwd?: string): Promise<{ output: string; exitCode: number }> {
+  async executeCommand(command: string, cwd?: string): Promise<CommandResult> {
     // Basic command execution stub
     if (command.trim() === 'help') {
-      return { output: 'Available commands: help, echo, pwd\n', exitCode: 0 };
+      return { output: 'Available commands: help, echo, pwd\n', exitCode: 0, stdout: 'Available commands: help, echo, pwd\n' };
     } else if (command.startsWith('echo ')) {
-      return { output: command.substring(5) + '\n', exitCode: 0 };
+      const output = command.substring(5) + '\n';
+      return { output, exitCode: 0, stdout: output };
     } else if (command.trim() === 'pwd') {
-      return { output: '/home/user\n', exitCode: 0 };
+      const output = '/home/user\n';
+      return { output, exitCode: 0, stdout: output };
     }
-    return { output: 'Command not available in stub mode. Use BridgeBackend for full support.\n', exitCode: 1 };
+    const errorMsg = 'Command not available in stub mode. Use BridgeBackend for full support.\n';
+    return { output: errorMsg, exitCode: 1, error: errorMsg, stderr: errorMsg };
   }
 
   async getSystemInfo(): Promise<any> {

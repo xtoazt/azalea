@@ -5,19 +5,15 @@ export default defineConfig({
   build: {
     lib: {
       entry: resolve(__dirname, 'package/index.ts'),
-      name: 'ClayTerminal',
+      name: 'ClayBackend',
       formats: ['es', 'cjs'],
       fileName: (format) => format === 'es' ? 'clay-util.esm.js' : 'clay-util.js'
     },
     rollupOptions: {
-      external: ['xterm', 'xterm-addon-fit', 'xterm-addon-web-links', 'xterm-addon-canvas'],
+      // No external dependencies - package is self-contained backend
+      external: [],
       output: {
-        globals: {
-          'xterm': 'Terminal',
-          'xterm-addon-fit': 'FitAddon',
-          'xterm-addon-web-links': 'WebLinksAddon',
-          'xterm-addon-canvas': 'CanvasAddon'
-        }
+        globals: {}
       }
     },
     outDir: 'dist',

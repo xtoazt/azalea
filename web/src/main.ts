@@ -1345,7 +1345,7 @@ class UIBuilder {
     // Title
     const title = document.createElement('div');
     title.className = 'terminal-title';
-    title.textContent = 'Clay Terminal';
+    title.textContent = 'Clay';
     
     // Header actions
     const actions = this.createHeaderActions();

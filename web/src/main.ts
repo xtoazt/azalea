@@ -577,58 +577,144 @@ class ClayWebTerminal {
   }
   
   private async autoStartBridgeOnChromeOS(): Promise<void> {
-    // Try to start bridge server on ChromeOS
-    // We'll use the bridge's execute API endpoint directly via HTTP
-    // This works even if the WebSocket isn't connected yet
+    // Foolproof auto-start system for ChromeOS
+    // This will diagnose and fix all issues automatically
+    
+    this.terminal.write('\r\n\x1b[36m[Auto-Setup]\x1b[0m Starting comprehensive bridge setup...\r\n');
     
     try {
-      // First, try to use the bridge's execute endpoint to start the server
-      // This requires the bridge HTTP server to be running (even if WebSocket isn't)
-      const startCommand = 'cd ~/clay/bridge 2>/dev/null || cd /home/$(whoami)/clay/bridge 2>/dev/null || cd bridge 2>/dev/null; if [ -f package.json ]; then nohup npm start > /tmp/clay-bridge.log 2>&1 & echo "Bridge starting in background (PID: $!)"; sleep 1; else echo "ERROR: Bridge directory not found"; fi';
-      
-      try {
-        // Try to execute via bridge API (if HTTP server is running)
-        const response = await fetch('http://127.0.0.1:8765/api/execute', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ 
-            command: startCommand,
-            cwd: '/home'
-          })
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          if (data.exitCode === 0 && !data.output.includes('ERROR')) {
-            this.terminal.write(`\x1b[36m[INFO]\x1b[0m ${data.output}\r\n`);
-            return;
-          } else {
-            throw new Error(data.output || 'Bridge start command failed');
-          }
-        }
-      } catch (apiError) {
-        // Bridge API not available, try via Web Worker backend as fallback
-        if (this.backend && this.backend instanceof WebWorkerBackendWrapper) {
-          this.terminal.write(`\x1b[33m[INFO]\x1b[0m Bridge API not available, trying alternative method...\r\n`);
-          
-          const result = await this.backend.executeCommand(startCommand);
-          
-          if (result.exitCode !== 0 || result.output.includes('ERROR') || result.output.includes('not found') || result.output.includes('directory not found')) {
-            throw new Error(result.output || 'Failed to start bridge server. Bridge directory not found.');
-          }
-          
-          this.terminal.write(`\x1b[36m[INFO]\x1b[0m ${result.output}\r\n`);
-          return;
-        }
-        
-        // If we can't use either method, throw error
-        throw new Error(`Bridge API not accessible: ${apiError}. Please start the bridge manually.`);
+      // Ensure we have a backend to execute commands
+      if (!this.backend) {
+        this.backend = new WebWorkerBackendWrapper();
+        await this.backend.connect();
       }
+      
+      // Step 1: Check and install Node.js
+      this.terminal.write('\x1b[33m[Step 1/6]\x1b[0m Checking Node.js installation...\r\n');
+      const nodeCheck = await this.backend.executeCommand('which node || echo "NOT_FOUND"');
+      
+      if (nodeCheck.output.includes('NOT_FOUND')) {
+        this.terminal.write('\x1b[33m[Fix]\x1b[0m Node.js not found. Installing...\r\n');
+        const installNode = await this.backend.executeCommand('sudo apt-get update && sudo apt-get install -y curl && curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - && sudo apt-get install -y nodejs');
+        if (installNode.exitCode !== 0) {
+          throw new Error(`Failed to install Node.js: ${installNode.output}`);
+        }
+        this.terminal.write('\x1b[32m[✓]\x1b[0m Node.js installed successfully\r\n');
+      } else {
+        this.terminal.write(`\x1b[32m[✓]\x1b[0m Node.js found: ${nodeCheck.output.trim()}\r\n`);
+      }
+      
+      // Step 2: Check and install npm
+      this.terminal.write('\x1b[33m[Step 2/6]\x1b[0m Checking npm installation...\r\n');
+      const npmCheck = await this.backend.executeCommand('which npm || echo "NOT_FOUND"');
+      
+      if (npmCheck.output.includes('NOT_FOUND')) {
+        this.terminal.write('\x1b[33m[Fix]\x1b[0m npm not found. Installing...\r\n');
+        const installNpm = await this.backend.executeCommand('sudo apt-get install -y npm');
+        if (installNpm.exitCode !== 0) {
+          throw new Error(`Failed to install npm: ${installNpm.output}`);
+        }
+        this.terminal.write('\x1b[32m[✓]\x1b[0m npm installed successfully\r\n');
+      } else {
+        this.terminal.write(`\x1b[32m[✓]\x1b[0m npm found: ${npmCheck.output.trim()}\r\n`);
+      }
+      
+      // Step 3: Find or create bridge directory
+      this.terminal.write('\x1b[33m[Step 3/6]\x1b[0m Locating bridge directory...\r\n');
+      let bridgeDir = '';
+      const dirChecks = [
+        '~/clay/bridge',
+        '/home/$(whoami)/clay/bridge',
+        '~/Desktop/clay/bridge',
+        '~/Downloads/clay/bridge'
+      ];
+      
+      for (const dir of dirChecks) {
+        const check = await this.backend.executeCommand(`test -d ${dir} && echo "EXISTS" || echo "NOT_FOUND"`);
+        if (check.output.includes('EXISTS')) {
+          bridgeDir = dir.replace('$(whoami)', await this.getUsername());
+          this.terminal.write(`\x1b[32m[✓]\x1b[0m Bridge directory found: ${bridgeDir}\r\n`);
+          break;
+        }
+      }
+      
+      if (!bridgeDir) {
+        // Try to clone repository
+        this.terminal.write('\x1b[33m[Fix]\x1b[0m Bridge directory not found. Attempting to clone repository...\r\n');
+        const cloneCmd = 'mkdir -p ~/clay && cd ~/clay && (git clone https://github.com/xtoazt/clay.git . 2>/dev/null || echo "CLONE_FAILED") && cd bridge && pwd';
+        const cloneResult = await this.backend.executeCommand(cloneCmd);
+        if (cloneResult.output.includes('CLONE_FAILED') || cloneResult.exitCode !== 0) {
+          throw new Error('Bridge directory not found and unable to clone. Please clone the repository manually to ~/clay');
+        }
+        bridgeDir = cloneResult.output.trim();
+        this.terminal.write(`\x1b[32m[✓]\x1b[0m Repository cloned to ${bridgeDir}\r\n`);
+      }
+      
+      // Step 4: Install bridge dependencies
+      this.terminal.write('\x1b[33m[Step 4/6]\x1b[0m Installing bridge dependencies...\r\n');
+      const installDeps = await this.backend.executeCommand(`cd ${bridgeDir} && npm install`);
+      if (installDeps.exitCode !== 0) {
+        throw new Error(`Failed to install dependencies: ${installDeps.output}`);
+      }
+      this.terminal.write('\x1b[32m[✓]\x1b[0m Dependencies installed\r\n');
+      
+      // Step 5: Create startup script
+      this.terminal.write('\x1b[33m[Step 5/6]\x1b[0m Creating startup script...\r\n');
+      const startupScript = `#!/bin/bash
+cd ${bridgeDir}
+nohup npm start > /tmp/clay-bridge.log 2>&1 &
+echo $! > /tmp/clay-bridge.pid
+`;
+      await this.backend.executeCommand(`mkdir -p ~/.local/bin && cat > ~/.local/bin/clay-bridge-start << 'EOFSCRIPT'\n${startupScript}EOFSCRIPT\nchmod +x ~/.local/bin/clay-bridge-start`);
+      this.terminal.write('\x1b[32m[✓]\x1b[0m Startup script created\r\n');
+      
+      // Step 6: Start bridge
+      this.terminal.write('\x1b[33m[Step 6/6]\x1b[0m Starting bridge server...\r\n');
+      
+      // Kill any existing bridge process
+      await this.backend.executeCommand('pkill -f "node.*bridge.js" 2>/dev/null || true');
+      
+      // Start bridge
+      const startResult = await this.backend.executeCommand(`cd ${bridgeDir} && nohup npm start > /tmp/clay-bridge.log 2>&1 & sleep 3 && echo "STARTED"`);
+      
+      // Verify it started
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      const bridge = new BridgeBackend();
+      const isHealthy = await bridge.healthCheck();
+      
+      if (isHealthy) {
+        this.terminal.write('\x1b[32m[✓]\x1b[0m Bridge server started successfully!\r\n');
+        this.terminal.write('\x1b[36m[INFO]\x1b[0m Bridge is running on http://127.0.0.1:8765\r\n');
+      } else {
+        // Check logs for error
+        const logCheck = await this.backend.executeCommand('tail -20 /tmp/clay-bridge.log 2>/dev/null || echo "No logs"');
+        throw new Error(`Bridge started but health check failed. Logs: ${logCheck.output}`);
+      }
+      
     } catch (error: any) {
-      throw new Error(`Auto-start failed: ${error.message}`);
+      // Get detailed error info
+      let errorDetails = error.message;
+      
+      // Try to get logs
+      try {
+        if (this.backend) {
+          const logs = await this.backend.executeCommand('tail -30 /tmp/clay-bridge.log 2>/dev/null || echo "No logs available"');
+          errorDetails += '\n\nBridge Logs:\n' + logs.output;
+        }
+      } catch (e) {
+        // Ignore log fetch errors
+      }
+      
+      throw new Error(errorDetails);
     }
+  }
+  
+  private async getUsername(): Promise<string> {
+    if (this.backend) {
+      const whoami = await this.backend.executeCommand('whoami');
+      return whoami.output.trim();
+    }
+    return 'user';
   }
   
   private async showBridgeStartupError(errorMessage: string): Promise<void> {
@@ -649,36 +735,38 @@ class ClayWebTerminal {
           </div>
           
           <div class="mb-6">
-            <p class="text-gray-300 mb-4">The bridge server could not be started automatically. Here's what went wrong:</p>
-            <div class="bg-gray-900/50 rounded-lg p-4 border border-gray-700/50">
+            <p class="text-gray-300 mb-4">The bridge server could not be started automatically. Diagnostic information:</p>
+            <div class="bg-gray-900/50 rounded-lg p-4 border border-gray-700/50 max-h-64 overflow-y-auto">
               <pre class="text-red-400 text-sm whitespace-pre-wrap font-mono">${this.escapeHtml(errorMessage)}</pre>
             </div>
+            <p class="text-gray-400 text-xs mt-2">💡 The error above shows what went wrong. Follow the steps below to fix it.</p>
           </div>
           
           <div class="mb-6">
-            <p class="text-gray-300 mb-3 font-semibold">To fix this, try one of the following:</p>
-            <ol class="list-decimal list-inside space-y-2 text-gray-300 text-sm">
-              <li>Open the Linux terminal and run:
-                <div class="bg-gray-900/50 rounded p-2 mt-1 font-mono text-xs border border-gray-700/50">
-                  cd ~/clay/bridge && npm install && npm start
-                </div>
-              </li>
-              <li>Make sure Node.js is installed:
-                <div class="bg-gray-900/50 rounded p-2 mt-1 font-mono text-xs border border-gray-700/50">
-                  which node || echo "Node.js not found"
-                </div>
-              </li>
-              <li>Check if the bridge directory exists:
-                <div class="bg-gray-900/50 rounded p-2 mt-1 font-mono text-xs border border-gray-700/50">
-                  ls -la ~/clay/bridge
-                </div>
-              </li>
-              <li>Check the bridge logs:
-                <div class="bg-gray-900/50 rounded p-2 mt-1 font-mono text-xs border border-gray-700/50">
-                  cat /tmp/clay-bridge.log 2>/dev/null || echo "No logs found"
-                </div>
-              </li>
-            </ol>
+            <p class="text-gray-300 mb-3 font-semibold">Quick Fix Options:</p>
+            <div class="space-y-3 mb-4">
+              <button id="auto-fix-btn" class="w-full px-4 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white rounded-lg font-semibold transition-all transform hover:scale-105 border border-blue-400/50">
+                🔧 Run Automatic Setup (Recommended)
+              </button>
+              <p class="text-xs text-gray-400 text-center">This will automatically install Node.js, npm, clone the repo, install dependencies, and start the bridge</p>
+            </div>
+            
+            <div class="border-t border-gray-700/50 pt-4 mt-4">
+              <p class="text-gray-300 mb-3 font-semibold">Or fix manually:</p>
+              <ol class="list-decimal list-inside space-y-3 text-gray-300 text-sm">
+                <li>Open the Linux Terminal (Terminal app or Crosh → shell)
+                  <div class="bg-gray-900/50 rounded p-2 mt-1 font-mono text-xs border border-gray-700/50">
+                    Press Ctrl+Alt+T or search for "Terminal" in ChromeOS
+                  </div>
+                </li>
+                <li>Run the setup script:
+                  <div class="bg-gray-900/50 rounded p-2 mt-1 font-mono text-xs border border-gray-700/50">
+                    cd ~/clay/bridge && bash setup-bridge.sh
+                  </div>
+                  <div class="text-xs text-gray-400 mt-1 ml-4">Or manually: <span class="font-mono">sudo apt update && sudo apt install nodejs npm && cd ~/clay/bridge && npm install && npm start</span></div>
+                </li>
+              </ol>
+            </div>
           </div>
           
           <div class="flex gap-3 justify-end">
@@ -710,6 +798,30 @@ class ClayWebTerminal {
         modal.remove();
         this.terminal.write('\r\n\x1b[33m[INFO]\x1b[0m Retrying bridge startup...\r\n');
         await this.initializeBackend();
+      });
+    }
+    
+    // Auto-fix button
+    const autoFixBtn = document.getElementById('auto-fix-btn');
+    if (autoFixBtn) {
+      autoFixBtn.addEventListener('click', async () => {
+        modal.remove();
+        this.terminal.write('\r\n\x1b[36m[Auto-Fix]\x1b[0m Running comprehensive setup...\r\n');
+        try {
+          await this.autoStartBridgeOnChromeOS();
+          // Wait and check
+          await new Promise(resolve => setTimeout(resolve, 3000));
+          const bridge = new BridgeBackend();
+          const isHealthy = await bridge.healthCheck();
+          if (isHealthy) {
+            this.terminal.write('\r\n\x1b[32m[SUCCESS]\x1b[0m Bridge setup complete! Reconnecting...\r\n');
+            await this.initializeBackend();
+          } else {
+            await this.showBridgeStartupError('Auto-fix completed but bridge is not responding. Please check the logs.');
+          }
+        } catch (autoFixError: any) {
+          await this.showBridgeStartupError(`Auto-fix failed: ${autoFixError.message}`);
+        }
       });
     }
     
@@ -1063,22 +1175,56 @@ class ClayWebTerminal {
         if (!isHealthy) {
           // Bridge not running, try to auto-start it
           this.terminal.write('\r\n\x1b[33m[INFO]\x1b[0m Bridge server not running. Attempting to start...\r\n');
-          await this.autoStartBridgeOnChromeOS();
           
-          // Wait a moment for server to start
-          await new Promise(resolve => setTimeout(resolve, 2000));
-          
-          // Check again
-          const isHealthyAfterStart = await bridge.healthCheck();
-          if (!isHealthyAfterStart) {
-            // Failed to start, show error popup
-            await this.showBridgeStartupError('Bridge server failed to start. Please check the error details below.');
+          try {
+            await this.autoStartBridgeOnChromeOS();
+            
+            // Wait a moment for server to start
+            this.terminal.write(`\x1b[33m[INFO]\x1b[0m Waiting for bridge to start...\r\n`);
+            await new Promise(resolve => setTimeout(resolve, 3000));
+            
+            // Check again
+            const isHealthyAfterStart = await bridge.healthCheck();
+            if (!isHealthyAfterStart) {
+              // Failed to start, show error popup with diagnostics
+              await this.showBridgeStartupError(
+                'Bridge server failed to start automatically.\n\n' +
+                'The bridge server needs to be started manually from the Linux terminal.\n' +
+                'See the diagnostics and steps below to fix this.'
+              );
+              return;
+            } else {
+              this.terminal.write(`\x1b[32m[SUCCESS]\x1b[0m Bridge server started successfully!\r\n`);
+            }
+          } catch (autoStartError: any) {
+            // Auto-start failed, show detailed error
+            await this.showBridgeStartupError(
+              `Auto-start failed: ${autoStartError.message}\n\n` +
+              'This usually means:\n' +
+              '1. Node.js or npm is not installed\n' +
+              '2. The bridge directory does not exist\n' +
+              '3. Dependencies are not installed\n' +
+              '4. The bridge server failed to start\n\n' +
+              'Please follow the steps below to start the bridge manually.'
+            );
             return;
           }
         }
       } catch (error: any) {
         console.error('[ERROR] Bridge startup check failed:', error);
-        await this.showBridgeStartupError(`Failed to check bridge status: ${error.message}`);
+        
+        // Provide more specific error message
+        let errorMsg = `Failed to check bridge status: ${error.message}`;
+        
+        if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+          errorMsg = 'Cannot connect to bridge server. This means:\n' +
+                     '1. The bridge server is not running\n' +
+                     '2. The bridge server is not installed\n' +
+                     '3. There may be a network/firewall issue\n\n' +
+                     'Please start the bridge manually following the steps below.';
+        }
+        
+        await this.showBridgeStartupError(errorMsg);
         return;
       }
     }
@@ -2984,4 +3130,5 @@ function route() {
 
 window.addEventListener('hashchange', route);
 document.addEventListener('DOMContentLoaded', route);
+
 

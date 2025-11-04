@@ -8,14 +8,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        node-version: [20.x]
-
+  build-web:
+    runs-on: ubuntu-latest
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -23,37 +17,70 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: ${{ matrix.node-version }}
+        node-version: '20.x'
         cache: 'npm'
 
-    - name: Install dependencies
-      run: npm ci
-
-    - name: Build TypeScript
-      run: npm run build
-
-    - name: Type check
-      run: npx tsc --noEmit
-
-    - name: Verify build output (Linux/macOS)
-      if: runner.os != 'Windows'
+    - name: Install web dependencies
       run: |
-        test -f dist/src/main.js || exit 1
-        test -f dist/renderer/index.html || exit 1
-        test -f dist/renderer/styles.css || exit 1
+        cd web
+        npm ci
 
-    - name: Verify build output (Windows)
-      if: runner.os == 'Windows'
-      shell: pwsh
+    - name: Type check web
       run: |
-        if (!(Test-Path "dist/src/main.js")) { exit 1 }
-        if (!(Test-Path "dist/renderer/index.html")) { exit 1 }
-        if (!(Test-Path "dist/renderer/styles.css")) { exit 1 }
+        cd web
+        npx tsc --noEmit
 
-    - name: Upload build artifacts
+    - name: Build web terminal
+      run: |
+        cd web
+        npm run build
+      env:
+        GITHUB_REPOSITORY: ${{ github.repository }}
+        NODE_ENV: production
+
+    - name: Verify web build output
+      run: |
+        test -d web/dist || exit 1
+        test -f web/dist/index.html || exit 1
+
+    - name: Upload web build artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: build-${{ matrix.os }}
-        path: dist/
+        name: web-build
+        path: web/dist/
         retention-days: 7
 
+  build-package:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+
+    - name: Install root dependencies
+      run: npm ci
+
+    - name: Type check package
+      run: |
+        npx tsc -p tsconfig.package.json --noEmit
+
+    - name: Build package
+      run: npm run build:package
+
+    - name: Verify package build output
+      run: |
+        test -f dist/clay-util.js || exit 1
+        test -f dist/clay-util.esm.js || exit 1
+        test -f dist/clay-util.d.ts || exit 1
+
+    - name: Upload package build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: package-build
+        path: dist/
+        retention-days: 7

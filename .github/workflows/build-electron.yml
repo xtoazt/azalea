@@ -39,27 +39,34 @@ jobs:
     - name: Install dependencies
       run: npm ci
 
-    - name: Build TypeScript
-      run: npm run build
+    - name: Install web dependencies
+      run: |
+        cd web
+        npm ci
+
+    - name: Build Electron
+      run: npm run build:electron
 
     - name: Create distribution package (Linux/macOS)
       if: runner.os != 'Windows'
       run: |
         mkdir -p dist-package
-        cp -r dist dist-package/
-        cp package.json dist-package/
+        if [ -d "dist" ]; then cp -r dist dist-package/; fi
+        if [ -d "web/dist" ]; then cp -r web/dist dist-package/web-dist/; fi
+        cp package.json dist-package/ 2>/dev/null || true
         cp README.md dist-package/ 2>/dev/null || true
-        tar -czf ${{ matrix.artifact-name }}.tar.gz -C dist-package .
+        tar -czf ${{ matrix.artifact-name }}.tar.gz -C dist-package . || echo "No files to package"
 
     - name: Create distribution package (Windows)
       if: runner.os == 'Windows'
       shell: pwsh
       run: |
         New-Item -ItemType Directory -Force -Path dist-package | Out-Null
-        Copy-Item -Recurse -Path dist -Destination dist-package\dist
-        Copy-Item -Path package.json -Destination dist-package\
-        if (Test-Path README.md) { Copy-Item -Path README.md -Destination dist-package\ }
-        Compress-Archive -Path dist-package\* -DestinationPath ${{ matrix.artifact-name }}.zip -Force
+        if (Test-Path "dist") { Copy-Item -Recurse -Path dist -Destination dist-package\dist }
+        if (Test-Path "web\dist") { Copy-Item -Recurse -Path web\dist -Destination dist-package\web-dist }
+        if (Test-Path "package.json") { Copy-Item -Path package.json -Destination dist-package\ }
+        if (Test-Path "README.md") { Copy-Item -Path README.md -Destination dist-package\ }
+        if (Test-Path "dist-package\*") { Compress-Archive -Path dist-package\* -DestinationPath ${{ matrix.artifact-name }}.zip -Force } else { Write-Host "No files to package" }
 
     - name: Upload artifact
       uses: actions/upload-artifact@v4

@@ -576,6 +576,166 @@ class ClayWebTerminal {
     return this.lastSearchQuery;
   }
   
+  private async autoStartBridgeOnChromeOS(): Promise<void> {
+    // Try to start bridge server on ChromeOS
+    // We'll use the bridge's execute API endpoint directly via HTTP
+    // This works even if the WebSocket isn't connected yet
+    
+    try {
+      // First, try to use the bridge's execute endpoint to start the server
+      // This requires the bridge HTTP server to be running (even if WebSocket isn't)
+      const startCommand = 'cd ~/clay/bridge 2>/dev/null || cd /home/$(whoami)/clay/bridge 2>/dev/null || cd bridge 2>/dev/null; if [ -f package.json ]; then nohup npm start > /tmp/clay-bridge.log 2>&1 & echo "Bridge starting in background (PID: $!)"; sleep 1; else echo "ERROR: Bridge directory not found"; fi';
+      
+      try {
+        // Try to execute via bridge API (if HTTP server is running)
+        const response = await fetch('http://127.0.0.1:8765/api/execute', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ 
+            command: startCommand,
+            cwd: '/home'
+          })
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data.exitCode === 0 && !data.output.includes('ERROR')) {
+            this.terminal.write(`\x1b[36m[INFO]\x1b[0m ${data.output}\r\n`);
+            return;
+          } else {
+            throw new Error(data.output || 'Bridge start command failed');
+          }
+        }
+      } catch (apiError) {
+        // Bridge API not available, try via Web Worker backend as fallback
+        if (this.backend && this.backend instanceof WebWorkerBackendWrapper) {
+          this.terminal.write(`\x1b[33m[INFO]\x1b[0m Bridge API not available, trying alternative method...\r\n`);
+          
+          const result = await this.backend.executeCommand(startCommand);
+          
+          if (result.exitCode !== 0 || result.output.includes('ERROR') || result.output.includes('not found') || result.output.includes('directory not found')) {
+            throw new Error(result.output || 'Failed to start bridge server. Bridge directory not found.');
+          }
+          
+          this.terminal.write(`\x1b[36m[INFO]\x1b[0m ${result.output}\r\n`);
+          return;
+        }
+        
+        // If we can't use either method, throw error
+        throw new Error(`Bridge API not accessible: ${apiError}. Please start the bridge manually.`);
+      }
+    } catch (error: any) {
+      throw new Error(`Auto-start failed: ${error.message}`);
+    }
+  }
+  
+  private async showBridgeStartupError(errorMessage: string): Promise<void> {
+    // Create error modal/popup
+    const modal = document.createElement('div');
+    modal.id = 'bridge-error-modal';
+    modal.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm';
+    modal.innerHTML = `
+      <div class="glass rounded-2xl shadow-2xl max-w-2xl w-full mx-4 border border-red-500/50 animate-fade-in">
+        <div class="p-6">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center">
+              <svg class="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+              </svg>
+            </div>
+            <h2 class="text-2xl font-bold text-white">Bridge Server Startup Failed</h2>
+          </div>
+          
+          <div class="mb-6">
+            <p class="text-gray-300 mb-4">The bridge server could not be started automatically. Here's what went wrong:</p>
+            <div class="bg-gray-900/50 rounded-lg p-4 border border-gray-700/50">
+              <pre class="text-red-400 text-sm whitespace-pre-wrap font-mono">${this.escapeHtml(errorMessage)}</pre>
+            </div>
+          </div>
+          
+          <div class="mb-6">
+            <p class="text-gray-300 mb-3 font-semibold">To fix this, try one of the following:</p>
+            <ol class="list-decimal list-inside space-y-2 text-gray-300 text-sm">
+              <li>Open the Linux terminal and run:
+                <div class="bg-gray-900/50 rounded p-2 mt-1 font-mono text-xs border border-gray-700/50">
+                  cd ~/clay/bridge && npm install && npm start
+                </div>
+              </li>
+              <li>Make sure Node.js is installed:
+                <div class="bg-gray-900/50 rounded p-2 mt-1 font-mono text-xs border border-gray-700/50">
+                  which node || echo "Node.js not found"
+                </div>
+              </li>
+              <li>Check if the bridge directory exists:
+                <div class="bg-gray-900/50 rounded p-2 mt-1 font-mono text-xs border border-gray-700/50">
+                  ls -la ~/clay/bridge
+                </div>
+              </li>
+              <li>Check the bridge logs:
+                <div class="bg-gray-900/50 rounded p-2 mt-1 font-mono text-xs border border-gray-700/50">
+                  cat /tmp/clay-bridge.log 2>/dev/null || echo "No logs found"
+                </div>
+              </li>
+            </ol>
+          </div>
+          
+          <div class="flex gap-3 justify-end">
+            <button id="bridge-error-close" class="px-4 py-2 bg-gray-700/50 hover:bg-gray-700 text-white rounded-lg font-medium transition-all">
+              Close
+            </button>
+            <button id="bridge-error-retry" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium transition-all">
+              Retry
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // Close button
+    const closeBtn = document.getElementById('bridge-error-close');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', () => {
+        modal.remove();
+      });
+    }
+    
+    // Retry button
+    const retryBtn = document.getElementById('bridge-error-retry');
+    if (retryBtn) {
+      retryBtn.addEventListener('click', async () => {
+        modal.remove();
+        this.terminal.write('\r\n\x1b[33m[INFO]\x1b[0m Retrying bridge startup...\r\n');
+        await this.initializeBackend();
+      });
+    }
+    
+    // Close on outside click
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        modal.remove();
+      }
+    });
+    
+    // Close on Escape key
+    const escapeHandler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        modal.remove();
+        document.removeEventListener('keydown', escapeHandler);
+      }
+    };
+    document.addEventListener('keydown', escapeHandler);
+  }
+  
+  private escapeHtml(text: string): string {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+  
   private checkBackendComponents(): void {
     if (this.backend) {
       if (this.backend instanceof BridgeBackend) {
@@ -894,6 +1054,35 @@ class ClayWebTerminal {
   }
 
   private async initializeBackend(): Promise<void> {
+    // On ChromeOS, try to auto-start bridge server if not running
+    if (this.isChromeOS) {
+      try {
+        const bridge = new BridgeBackend();
+        const isHealthy = await bridge.healthCheck();
+        
+        if (!isHealthy) {
+          // Bridge not running, try to auto-start it
+          this.terminal.write('\r\n\x1b[33m[INFO]\x1b[0m Bridge server not running. Attempting to start...\r\n');
+          await this.autoStartBridgeOnChromeOS();
+          
+          // Wait a moment for server to start
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          
+          // Check again
+          const isHealthyAfterStart = await bridge.healthCheck();
+          if (!isHealthyAfterStart) {
+            // Failed to start, show error popup
+            await this.showBridgeStartupError('Bridge server failed to start. Please check the error details below.');
+            return;
+          }
+        }
+      } catch (error: any) {
+        console.error('[ERROR] Bridge startup check failed:', error);
+        await this.showBridgeStartupError(`Failed to check bridge status: ${error.message}`);
+        return;
+      }
+    }
+    
     // Always try to connect to bridge first (works on any platform, not just ChromeOS)
     const bridge = new BridgeBackend();
     
@@ -920,6 +1109,12 @@ class ClayWebTerminal {
           console.error('[ERROR] Failed to connect to bridge WebSocket:', connectError);
           this.updateBridgeStatus('error');
           this.updateWebSocketStatus('error');
+          
+          // Show error popup on ChromeOS
+          if (this.isChromeOS) {
+            await this.showBridgeStartupError(`WebSocket connection failed: ${connectError}`);
+          }
+          
           // Fall through to retry logic
           throw connectError;
         }

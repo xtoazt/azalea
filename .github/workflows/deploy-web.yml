@@ -44,6 +44,24 @@ jobs:
         GITHUB_REPOSITORY: ${{ github.repository }}
         NODE_ENV: production
 
+    - name: Verify build output
+      run: |
+        echo "Checking build output..."
+        if [ ! -d "web/dist" ]; then
+          echo "❌ Error: web/dist directory not found!"
+          exit 1
+        fi
+        echo "✅ Build directory exists"
+        echo "Files in web/dist:"
+        ls -la web/dist/ || echo "Directory is empty"
+        echo ""
+        echo "File count: $(find web/dist -type f | wc -l)"
+        if [ $(find web/dist -type f | wc -l) -eq 0 ]; then
+          echo "❌ Error: No files found in web/dist!"
+          exit 1
+        fi
+        echo "✅ Build output verified"
+
     - name: Setup Pages
       uses: actions/configure-pages@v4
 
@@ -55,3 +73,8 @@ jobs:
     - name: Deploy to GitHub Pages
       id: deployment
       uses: actions/deploy-pages@v4
+
+    - name: Deployment status
+      run: |
+        echo "✅ Deployment completed successfully!"
+        echo "URL: ${{ steps.deployment.outputs.page_url }}"

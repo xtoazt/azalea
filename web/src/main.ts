@@ -62,35 +62,40 @@ class ClayWebTerminal {
   private bridgeStatus: 'connected' | 'disconnected' | 'connecting' | 'error' = 'disconnected';
 
   constructor() {
+    // Redesigned terminal with modern dark theme
     this.terminal = new Terminal({
       theme: {
-        background: '#1e1e2e',
-        foreground: '#cdd6f4',
-        cursor: '#cba6f7',
-        black: '#45475a',
-        red: '#f38ba8',
-        green: '#a6e3a1',
-        yellow: '#f9e2af',
-        blue: '#89b4fa',
-        magenta: '#cba6f7',
-        cyan: '#89dceb',
-        white: '#cdd6f4',
-        brightBlack: '#585b70',
-        brightRed: '#f38ba8',
-        brightGreen: '#a6e3a1',
-        brightYellow: '#f9e2af',
-        brightBlue: '#89b4fa',
-        brightMagenta: '#cba6f7',
-        brightCyan: '#89dceb',
-        brightWhite: '#f5e0dc'
+        background: '#0a0a0a',
+        foreground: '#e4e4e7',
+        cursor: '#3b82f6',
+        cursorAccent: '#0a0a0a',
+        black: '#1f2937',
+        red: '#ef4444',
+        green: '#10b981',
+        yellow: '#f59e0b',
+        blue: '#3b82f6',
+        magenta: '#8b5cf6',
+        cyan: '#06b6d4',
+        white: '#e4e4e7',
+        brightBlack: '#4b5563',
+        brightRed: '#f87171',
+        brightGreen: '#34d399',
+        brightYellow: '#fbbf24',
+        brightBlue: '#60a5fa',
+        brightMagenta: '#a78bfa',
+        brightCyan: '#22d3ee',
+        brightWhite: '#f9fafb'
       },
-      fontSize: 13,
-      fontFamily: '"SF Mono", "Menlo", "Monaco", "DejaVu Sans Mono", "Lucida Console", monospace',
+      fontSize: 14,
+      fontFamily: '"JetBrains Mono", "Fira Code", "SF Mono", "Menlo", "Monaco", "DejaVu Sans Mono", monospace',
       cursorBlink: true,
-      cursorStyle: 'block',
-      allowTransparency: true,
-      lineHeight: 1.6,
-      letterSpacing: 0.3
+      cursorStyle: 'bar',
+      cursorWidth: 2,
+      allowTransparency: false,
+      lineHeight: 1.5,
+      letterSpacing: 0.5,
+      scrollback: 10000,
+      tabStopWidth: 4
     });
 
     this.fitAddon = new FitAddon();
@@ -98,7 +103,15 @@ class ClayWebTerminal {
     this.terminal.loadAddon(new WebLinksAddon());
     this.terminal.loadAddon(new CanvasAddon());
 
-    this.aiAssistant = new SimpleAIAssistant();
+    // AI Assistant - ALWAYS initialize, regardless of backend
+    try {
+      this.aiAssistant = new SimpleAIAssistant();
+    } catch (error) {
+      console.error('Failed to initialize AI assistant:', error);
+      // Create a fallback AI assistant that always works
+      this.aiAssistant = new SimpleAIAssistant();
+    }
+    
     this.isChromeOS = isChromeOS();
     
     // Try to connect to bridge first (real system access), fallback to Web Worker
@@ -439,19 +452,114 @@ class ClayWebTerminal {
       return true;
     });
 
-    // Handle paste (Ctrl+V)
+    // Handle copy (Ctrl+C) - copy selected text if any, otherwise send interrupt
     this.terminal.attachCustomKeyEventHandler((event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key === 'c') {
+        const selection = this.terminal.getSelection();
+        if (selection && selection.length > 0) {
+          // Copy selected text
+          navigator.clipboard.writeText(selection).then(() => {
+            this.terminal.write(`\r\n\x1b[32m[Copied to clipboard]\x1b[0m\r\n`);
+            this.writePrompt();
+          }).catch(() => {});
+          return false;
+        }
+        // If no selection, let it through as interrupt (Ctrl+C)
+      }
+      // Handle paste (Ctrl+V)
       if ((event.ctrlKey || event.metaKey) && event.key === 'v') {
         navigator.clipboard.readText().then(text => {
-          this.currentLine += text;
-          this.terminal.write(text);
+          if (this.isConnected && this.backend && this.backend.getConnected()) {
+            this.backend.sendInput(text);
+          } else {
+            this.currentLine += text;
+            this.terminal.write(text);
+          }
         }).catch(() => {});
         return false;
       }
       return true;
     });
 
+    // Right-click context menu for copy
+    terminalElement.addEventListener('contextmenu', (e: MouseEvent) => {
+      e.preventDefault();
+      const selection = this.terminal.getSelection();
+      if (selection && selection.length > 0) {
+        navigator.clipboard.writeText(selection).then(() => {
+          this.terminal.write(`\r\n\x1b[32m[Copied to clipboard]\x1b[0m\r\n`);
+          this.writePrompt();
+        }).catch(() => {});
+      }
+    });
+
+    // Double-click to select word and copy
+    terminalElement.addEventListener('dblclick', () => {
+      const selection = this.terminal.getSelection();
+      if (selection && selection.length > 0) {
+        navigator.clipboard.writeText(selection).then(() => {
+          this.terminal.write(`\r\n\x1b[32m[Copied to clipboard]\x1b[0m\r\n`);
+          this.writePrompt();
+        }).catch(() => {});
+      }
+    });
+
     this.printWelcomeMessage();
+  }
+
+  private async checkLinuxFilesAccess(): Promise<string | null> {
+    // Check for ChromeOS Linux Files access
+    const possiblePaths = [
+      '/mnt/chromeos/MyFiles/LinuxFiles',
+      '/home/chronos/user/MyFiles/LinuxFiles',
+      '~/LinuxFiles',
+      '~/MyFiles/LinuxFiles'
+    ];
+    
+    if (this.useBridge && this.backend) {
+      try {
+        // Try to check if Linux Files path exists
+        const result = await this.backend.executeCommand('test -d /mnt/chromeos/MyFiles/LinuxFiles && echo "EXISTS" || echo "NOT_FOUND"');
+        if (result.output.includes('EXISTS')) {
+          return '/mnt/chromeos/MyFiles/LinuxFiles';
+        }
+        
+        // Try alternative path
+        const result2 = await this.backend.executeCommand('test -d ~/LinuxFiles && echo "EXISTS" || echo "NOT_FOUND"');
+        if (result2.output.includes('EXISTS')) {
+          const homeResult = await this.backend.executeCommand('echo $HOME');
+          return `${homeResult.output.trim()}/LinuxFiles`;
+        }
+      } catch (error) {
+        console.log('[INFO] Could not check Linux Files access:', error);
+      }
+    }
+    
+    return null;
+  }
+
+  private async saveToLinuxFiles(content: string, filename: string): Promise<boolean> {
+    try {
+      const linuxFilesPath = await this.checkLinuxFilesAccess();
+      if (!linuxFilesPath) {
+        return false;
+      }
+      
+      // Use backend to save file
+      const fullPath = `${linuxFilesPath}/${filename}`;
+      const escapedContent = content.replace(/'/g, "'\\''");
+      const command = `cat > '${fullPath}' << 'EOF'\n${content}\nEOF`;
+      
+      if (this.backend && this.backend.getConnected()) {
+        const result = await this.backend.executeCommand(command);
+        return result.exitCode === 0;
+      }
+      
+      return false;
+    } catch (error) {
+      console.error('Error saving to Linux Files:', error);
+      return false;
+    }
   }
 
   private async initializeBackend(): Promise<void> {
@@ -466,6 +574,14 @@ class ClayWebTerminal {
         this.useBridge = true;
         this.updateBridgeStatus('connecting');
         this.updateWebSocketStatus('connecting');
+        
+        // Check for Linux Files access
+        const linuxFilesPath = await this.checkLinuxFilesAccess();
+        if (linuxFilesPath) {
+          this.terminal.write(`\r\n\x1b[32m[INFO]\x1b[0m Linux Files access detected: ${linuxFilesPath}\r\n`);
+          this.terminal.write(`\x1b[33m[INFO]\x1b[0m Files will be saved to Linux Files folder when possible.\r\n`);
+        }
+        
         return;
       }
     } catch (error) {
@@ -508,9 +624,11 @@ class ClayWebTerminal {
     this.useBridge = false;
     this.updateWebVMStatus('connecting');
     
-    // Show helpful message
-    this.terminal.write('\r\n\x1b[33m[INFO]\x1b[0m Running in browser mode (limited commands)\r\n');
-    this.terminal.write('\x1b[33m[INFO]\x1b[0m To enable real commands, start the bridge server:\r\n');
+    // Show helpful message about available commands
+    this.terminal.write('\r\n\x1b[36m[INFO]\x1b[0m Running in browser mode\r\n');
+    this.terminal.write('\x1b[33m[INFO]\x1b[0m Available commands: ls, cd, pwd, echo, cat, clear, help, @ai\r\n');
+    this.terminal.write('\x1b[33m[INFO]\x1b[0m AI Assistant (@ai) is always available!\r\n');
+    this.terminal.write('\x1b[33m[INFO]\x1b[0m To enable full system commands, start the bridge server:\r\n');
     this.terminal.write('\x1b[36m[INFO]\x1b[0m   cd bridge && npm install && npm start\r\n');
     this.terminal.write('\x1b[33m[INFO]\x1b[0m The terminal will auto-connect when bridge is available.\r\n');
   }
@@ -524,10 +642,18 @@ class ClayWebTerminal {
       if (this.useBridge) {
         this.terminal.write('\r\n\x1b[33m[INFO]\x1b[0m Connecting to Clay Terminal Bridge...\r\n');
         this.terminal.write('\x1b[32m[INFO]\x1b[0m Real system command execution enabled!\r\n');
+        this.terminal.write('\x1b[32m[INFO]\x1b[0m Full terminal access - alternative to Crostini/Crosh\r\n');
         this.terminal.write('\x1b[32m[INFO]\x1b[0m All commands execute on your ChromeOS system.\r\n');
+        
+        // Show Linux Files status
+        const linuxFilesPath = await this.checkLinuxFilesAccess();
+        if (linuxFilesPath) {
+          this.terminal.write(`\x1b[36m[Files]\x1b[0m Linux Files folder: ${linuxFilesPath}\r\n`);
+        }
       } else {
         this.terminal.write('\r\n\x1b[33m[INFO]\x1b[0m Running in browser mode (limited commands)\r\n');
         this.terminal.write('\x1b[33m[INFO]\x1b[0m Start bridge server for full terminal access.\r\n');
+        this.terminal.write('\x1b[33m[INFO]\x1b[0m Run: cd bridge && npm install && npm start\r\n');
       }
       
       // Set up output handler
@@ -681,10 +807,26 @@ class ClayWebTerminal {
     }
 
     if (command === 'help') {
-      this.terminal.write(`Available commands:\r\n`);
-      this.terminal.write(`  clear, cls - Clear terminal\r\n`);
-      this.terminal.write(`  help - Show this help\r\n`);
-      this.terminal.write(`  @ai <question> - Ask AI assistant\r\n`);
+      this.terminal.write(`\r\n\x1b[36mAvailable Commands:\x1b[0m\r\n`);
+      this.terminal.write(`  \x1b[32mclear\x1b[0m, \x1b[32mcls\x1b[0m - Clear terminal\r\n`);
+      this.terminal.write(`  \x1b[32mhelp\x1b[0m - Show this help\r\n`);
+      this.terminal.write(`  \x1b[32m@ai <question>\x1b[0m - Ask AI assistant (always available)\r\n`);
+      
+      // Show device-specific commands
+      if (this.useBridge) {
+        this.terminal.write(`\r\n\x1b[36mSystem Commands (Full Access):\x1b[0m\r\n`);
+        this.terminal.write(`  All standard Unix/Linux commands available\r\n`);
+        this.terminal.write(`  Full bash shell with real system access\r\n`);
+      } else {
+        this.terminal.write(`\r\n\x1b[36mBrowser Commands:\x1b[0m\r\n`);
+        this.terminal.write(`  \x1b[32mls\x1b[0m - List files\r\n`);
+        this.terminal.write(`  \x1b[32mcd\x1b[0m - Change directory\r\n`);
+        this.terminal.write(`  \x1b[32mpwd\x1b[0m - Print working directory\r\n`);
+        this.terminal.write(`  \x1b[32mecho\x1b[0m - Echo text\r\n`);
+        this.terminal.write(`  \x1b[32mcat\x1b[0m - Display file contents\r\n`);
+        this.terminal.write(`\r\n\x1b[33mNote:\x1b[0m Start bridge server for full system access\r\n`);
+      }
+      
       this.writePrompt();
       return;
     }
@@ -692,11 +834,15 @@ class ClayWebTerminal {
     if (command.startsWith('@ai ')) {
       const question = command.substring(4).trim();
       
-      // Check if AI assistant is available
+      // Ensure AI assistant is always available
       if (!this.aiAssistant) {
-        this.terminal.write(`\r\n\x1b[31m[ERROR]\x1b[0m AI assistant not initialized\r\n`);
-        this.writePrompt();
-        return;
+        try {
+          this.aiAssistant = new SimpleAIAssistant();
+        } catch (error) {
+          this.terminal.write(`\r\n\x1b[31m[ERROR]\x1b[0m Failed to initialize AI assistant: ${error}\r\n`);
+          this.writePrompt();
+          return;
+        }
       }
       
       // Handle special AI commands
@@ -896,10 +1042,15 @@ class ClayWebTerminal {
   }
 
   private async handleAICommand(question: string): Promise<void> {
+    // Ensure AI assistant is always available
     if (!this.aiAssistant) {
-      this.terminal.write(`\r\n\x1b[31m[ERROR]\x1b[0m AI assistant is not available\r\n`);
-      this.writePrompt();
-      return;
+      try {
+        this.aiAssistant = new SimpleAIAssistant();
+      } catch (error) {
+        this.terminal.write(`\r\n\x1b[31m[ERROR]\x1b[0m AI assistant initialization failed. Please refresh the page.\r\n`);
+        this.writePrompt();
+        return;
+      }
     }
     
     this.aiExecuting = true;
@@ -1136,13 +1287,14 @@ class ClayWebTerminal {
 
   private printWelcomeMessage(): void {
     this.terminal.write('\r\n');
-    this.terminal.write(`\x1b[1m\x1b[35m╔════════════════════════════════════════╗\x1b[0m\r\n`);
-    this.terminal.write(`\x1b[1m\x1b[35m║\x1b[0m  \x1b[1m\x1b[36mClay Terminal\x1b[0m - The best terminal experience  \x1b[1m\x1b[35m║\x1b[0m\r\n`);
-    this.terminal.write(`\x1b[1m\x1b[35m╚════════════════════════════════════════╝\x1b[0m\r\n`);
+    this.terminal.write(`\x1b[1m\x1b[36m╔═══════════════════════════════════════════════╗\x1b[0m\r\n`);
+    this.terminal.write(`\x1b[1m\x1b[36m║\x1b[0m  \x1b[1m\x1b[34mClay Terminal\x1b[0m - Professional Web Terminal      \x1b[1m\x1b[36m║\x1b[0m\r\n`);
+    this.terminal.write(`\x1b[1m\x1b[36m╚═══════════════════════════════════════════════╝\x1b[0m\r\n`);
     this.terminal.write('\r\n');
-    this.terminal.write(`  \x1b[33m✨\x1b[0m Type \x1b[33m@ai <question>\x1b[0m to ask the AI assistant\r\n`);
-    this.terminal.write(`  \x1b[33m✨\x1b[0m Type \x1b[33mhelp\x1b[0m for available commands\r\n`);
-    this.terminal.write(`  \x1b[33m✨\x1b[0m Check status indicators at the top\r\n`);
+    this.terminal.write(`  \x1b[32m✓\x1b[0m \x1b[36mAI Assistant\x1b[0m is always available - Type \x1b[33m@ai <question>\x1b[0m\r\n`);
+    this.terminal.write(`  \x1b[32m✓\x1b[0m Type \x1b[33mhelp\x1b[0m for available commands\r\n`);
+    this.terminal.write(`  \x1b[32m✓\x1b[0m Commands adapt to your device capabilities\r\n`);
+    this.terminal.write(`  \x1b[32m✓\x1b[0m Dark mode enabled by default\r\n`);
     this.terminal.write('\r\n');
   }
 
@@ -1227,11 +1379,21 @@ class SimpleAIAssistant {
       });
 
       if (!response.ok) {
-        throw new Error(`API Error: ${response.status}`);
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API Error: ${response.status} - ${errorText}`);
       }
 
       const data = await response.json();
-      const assistantResponse = data.choices[0]?.message?.content || 'No response generated';
+      
+      if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+        throw new Error('Invalid response format from AI API');
+      }
+      
+      const assistantResponse = data.choices[0].message.content || 'No response generated';
+      
+      if (!assistantResponse || assistantResponse.trim().length === 0) {
+        throw new Error('Empty response from AI');
+      }
       
       this.conversationHistory.push({ role: 'assistant', content: assistantResponse });
       
@@ -1244,19 +1406,29 @@ class SimpleAIAssistant {
       
       return assistantResponse;
     } catch (error: any) {
-      throw new Error(`Failed to get AI response: ${error.message}`);
+      // Better error handling
+      const errorMessage = error.message || 'Unknown error occurred';
+      console.error('AI API Error:', error);
+      
+      // Reset conversation history on persistent errors
+      if (errorMessage.includes('401') || errorMessage.includes('403')) {
+        this.conversationHistory = [this.conversationHistory[0]]; // Keep system message
+      }
+      
+      throw new Error(`Failed to get AI response: ${errorMessage}`);
     }
   }
 
   public async quickFix(command: string, error: string): Promise<string | null> {
-    const prompt = `The command "${command}" failed with this error:\n${error}\n\nProvide ONLY the exact command to fix this issue. Format it in a code block like \`\`\`bash\nfix-command\n\`\`\`. Do not include explanations, just the fix command.`;
-    
     try {
+      const prompt = `The command "${command}" failed with this error:\n${error}\n\nProvide ONLY the exact command to fix this issue. Format it in a code block like \`\`\`bash\nfix-command\n\`\`\`. Do not include explanations, just the fix command.`;
       const response = await this.askQuestion(prompt);
       const commands = this.extractCommand(response);
       return commands.length > 0 ? commands[0] : null;
     } catch (error: any) {
-      throw error;
+      console.error('Quick fix error:', error);
+      // Return a simple fallback or null
+      return null;
     }
   }
 
@@ -1600,9 +1772,9 @@ function toggleDarkMode() {
 }
 
 function initTheme() {
+  // Default to dark mode
   const saved = localStorage.getItem('theme');
-  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-  const shouldBeDark = saved === 'dark' || (!saved && prefersDark);
+  const shouldBeDark = saved === 'light' ? false : true; // Default to dark unless explicitly set to light
   
   if (shouldBeDark) {
     document.documentElement.classList.add('dark');
@@ -1887,28 +2059,28 @@ function renderTerminalView(): void {
   const root = document.getElementById('app-root')!;
   root.innerHTML = '';
   const layout = document.createElement('div');
-  layout.className = 'min-h-screen flex flex-col bg-white dark:bg-gray-900';
+  layout.className = 'min-h-screen flex flex-col bg-gray-950';
   layout.innerHTML = `
-    <nav class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
+    <nav class="bg-gray-900 border-b border-gray-800 px-6 py-3">
       <div class="flex items-center justify-between max-w-full">
-        <button id="back-home" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-white rounded-lg font-medium transition-colors flex items-center gap-2">
+        <button id="back-home" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-lg font-medium transition-colors flex items-center gap-2">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
           </svg>
           Dashboard
         </button>
-        <button id="theme-toggle-terminal" class="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
-          <svg id="sun-icon-terminal" class="w-5 h-5 text-gray-900 dark:hidden" fill="currentColor" viewBox="0 0 20 20">
+        <button id="theme-toggle-terminal" class="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors">
+          <svg id="sun-icon-terminal" class="w-5 h-5 text-gray-400 dark:hidden" fill="currentColor" viewBox="0 0 20 20">
             <path fill-rule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clip-rule="evenodd"/>
           </svg>
-          <svg id="moon-icon-terminal" class="w-5 h-5 text-gray-100 hidden dark:block" fill="currentColor" viewBox="0 0 20 20">
+          <svg id="moon-icon-terminal" class="w-5 h-5 text-gray-400 hidden dark:block" fill="currentColor" viewBox="0 0 20 20">
             <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/>
           </svg>
         </button>
       </div>
     </nav>
-    <div class="flex-1 overflow-hidden">
-      <div id="terminal" class="w-full h-full bg-black"></div>
+    <div class="flex-1 overflow-hidden bg-gray-950 p-4">
+      <div id="terminal" class="w-full h-full bg-gray-950 rounded-lg border border-gray-800 shadow-2xl"></div>
     </div>
   `;
   root.appendChild(layout);

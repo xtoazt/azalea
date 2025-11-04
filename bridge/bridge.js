@@ -34,8 +34,41 @@ function getShell() {
   } else if (process.platform === 'darwin') {
     return process.env.SHELL || '/bin/zsh';
   } else {
+    // For ChromeOS/Linux, prefer bash
     return process.env.SHELL || '/bin/bash';
   }
+}
+
+// Check if running on ChromeOS
+function isChromeOS() {
+  // Check for ChromeOS-specific environment
+  return process.env.CHROMEOS === '1' || 
+         process.platform === 'linux' && 
+         (fs.existsSync('/etc/lsb-release') && 
+          fs.readFileSync('/etc/lsb-release', 'utf8').includes('CHROMEOS'));
+}
+
+// Get ChromeOS Linux Files path
+function getLinuxFilesPath() {
+  if (!isChromeOS()) return null;
+  
+  const possiblePaths = [
+    '/mnt/chromeos/MyFiles/LinuxFiles',
+    os.homedir() + '/LinuxFiles',
+    os.homedir() + '/MyFiles/LinuxFiles'
+  ];
+  
+  for (const path of possiblePaths) {
+    try {
+      if (fs.existsSync(path) && fs.statSync(path).isDirectory()) {
+        return path;
+      }
+    } catch (e) {
+      // Continue checking other paths
+    }
+  }
+  
+  return null;
 }
 
 // Store active processes (PTY sessions or spawn processes)
@@ -307,6 +340,44 @@ app.post('/api/execute', async (req, res) => {
       success: false,
       output: error.message || String(error),
       exitCode: error.code || 1
+    });
+  }
+});
+
+// Save file to Linux Files (ChromeOS)
+app.post('/api/save-to-linux-files', async (req, res) => {
+  const { content, filename } = req.body;
+  
+  if (!content || !filename) {
+    return res.status(400).json({ error: 'Content and filename are required' });
+  }
+  
+  try {
+    const linuxFilesPath = getLinuxFilesPath();
+    if (!linuxFilesPath) {
+      return res.status(404).json({ error: 'Linux Files folder not found' });
+    }
+    
+    const fullPath = path.join(linuxFilesPath, filename);
+    
+    // Ensure directory exists
+    const dir = path.dirname(fullPath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    
+    // Write file
+    fs.writeFileSync(fullPath, content, 'utf8');
+    
+    res.json({
+      success: true,
+      path: fullPath,
+      message: `File saved to ${fullPath}`
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
     });
   }
 });

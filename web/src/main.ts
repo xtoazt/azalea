@@ -211,28 +211,97 @@ class ClayWebTerminal {
   }
 
   private initializeStatusBar(): void {
-    // Show/hide bridge status based on ChromeOS
-    const bridgeStatusEl = document.getElementById('bridge-status');
-    const websocketStatusEl = document.getElementById('websocket-status');
-    
-    if (this.isChromeOS) {
-      if (bridgeStatusEl) bridgeStatusEl.style.display = 'flex';
-      if (websocketStatusEl) websocketStatusEl.style.display = 'flex';
-    } else {
-      if (bridgeStatusEl) bridgeStatusEl.style.display = 'none';
-      if (websocketStatusEl) websocketStatusEl.style.display = 'none';
-    }
-    
     // Update status indicators
     this.updateWebVMStatus('connecting');
     this.updateWebSocketStatus('disconnected');
     this.updateBridgeStatus('disconnected');
     this.updateAIStatus('idle');
+    this.updateOSInfo();
+    this.updateCPUUsage();
     
-    // Periodically check backend status
+    // Periodically check backend status and CPU
     setInterval(() => {
       this.checkBackendComponents();
+      this.updateCPUUsage();
     }, 2000);
+    
+    // Setup model selector
+    const modelSelect = document.getElementById('model-select') as HTMLSelectElement;
+    if (modelSelect && this.aiAssistant) {
+      const currentModel = this.aiAssistant.getCurrentModel();
+      modelSelect.value = currentModel;
+      modelSelect.addEventListener('change', () => {
+        if (this.aiAssistant) {
+          this.aiAssistant.setModel(modelSelect.value);
+          this.terminal.write(`\r\n\x1b[32m[AI]\x1b[0m Model changed to: ${modelSelect.value}\r\n`);
+          this.writePrompt();
+        }
+      });
+    }
+  }
+  
+  private updateOSInfo(): void {
+    const osText = document.getElementById('os-text');
+    if (!osText) return;
+    
+    if (this.useBridge && this.backend) {
+      this.backend.getSystemInfo().then(info => {
+        if (info) {
+          const platform = info.platform || 'Unknown';
+          const arch = info.arch || '';
+          osText.textContent = `OS: ${platform}${arch ? `/${arch}` : ''}`;
+        }
+      }).catch(() => {
+        osText.textContent = 'OS: Unknown';
+      });
+    } else {
+      // Browser detection
+      const userAgent = navigator.userAgent;
+      let os = 'Unknown';
+      if (userAgent.includes('Win')) os = 'Windows';
+      else if (userAgent.includes('Mac')) os = 'macOS';
+      else if (userAgent.includes('Linux')) os = 'Linux';
+      else if (userAgent.includes('CrOS')) os = 'ChromeOS';
+      else if (userAgent.includes('Android')) os = 'Android';
+      else if (userAgent.includes('iOS')) os = 'iOS';
+      
+      osText.textContent = `OS: ${os}`;
+    }
+  }
+  
+  private updateCPUUsage(): void {
+    const cpuText = document.getElementById('cpu-text');
+    if (!cpuText) return;
+    
+    if (this.useBridge && this.backend) {
+      // Try to get CPU usage from bridge
+      this.backend.executeCommand('top -bn1 | grep "Cpu(s)" | sed "s/.*, *\\([0-9.]*\\)%* id.*/\\1/" | awk \'{print 100 - $1}\'').then(result => {
+        if (result.exitCode === 0 && result.output.trim()) {
+          const cpu = parseFloat(result.output.trim());
+          if (!isNaN(cpu)) {
+            cpuText.textContent = `CPU: ${cpu.toFixed(1)}%`;
+          }
+        }
+      }).catch(() => {
+        // Fallback: use performance API
+        if ('performance' in window && 'memory' in performance) {
+          const memInfo = (performance as any).memory;
+          if (memInfo) {
+            const used = memInfo.usedJSHeapSize / 1048576;
+            cpuText.textContent = `Mem: ${used.toFixed(0)}MB`;
+          }
+        }
+      });
+    } else {
+      // Browser: show memory usage
+      if ('performance' in window && 'memory' in performance) {
+        const memInfo = (performance as any).memory;
+        if (memInfo) {
+          const used = memInfo.usedJSHeapSize / 1048576;
+          cpuText.textContent = `Mem: ${used.toFixed(0)}MB`;
+        }
+      }
+    }
   }
   
   private checkBackendComponents(): void {
@@ -278,26 +347,17 @@ class ClayWebTerminal {
     const dot = document.getElementById('webvm-dot');
     const text = document.getElementById('webvm-text');
     
-    if (dot && text) {
-      dot.className = 'status-dot';
-      switch (status) {
-        case 'connected':
-          dot.classList.add('connected');
-          text.textContent = 'WebVM';
-          break;
-        case 'disconnected':
-          dot.classList.add('disconnected');
-          text.textContent = 'WebVM';
-          break;
-        case 'connecting':
-          dot.classList.add('connecting');
-          text.textContent = 'WebVM...';
-          break;
-        case 'error':
-          dot.classList.add('error');
-          text.textContent = 'WebVM';
-          break;
-      }
+    if (dot) {
+      const colorMap: Record<string, string> = {
+        'connected': 'bg-green-500',
+        'disconnected': 'bg-gray-500',
+        'connecting': 'bg-yellow-500',
+        'error': 'bg-red-500'
+      };
+      dot.className = `w-2 h-2 rounded-full ${colorMap[status] || 'bg-gray-500'}`;
+    }
+    if (text) {
+      text.textContent = status === 'connecting' ? 'WebVM...' : 'WebVM';
     }
   }
   
@@ -306,26 +366,17 @@ class ClayWebTerminal {
     const dot = document.getElementById('websocket-dot');
     const text = document.getElementById('websocket-text');
     
-    if (dot && text) {
-      dot.className = 'status-dot';
-      switch (status) {
-        case 'connected':
-          dot.classList.add('connected');
-          text.textContent = 'WS';
-          break;
-        case 'disconnected':
-          dot.classList.add('disconnected');
-          text.textContent = 'WS';
-          break;
-        case 'connecting':
-          dot.classList.add('connecting');
-          text.textContent = 'WS...';
-          break;
-        case 'error':
-          dot.classList.add('error');
-          text.textContent = 'WS';
-          break;
-      }
+    if (dot) {
+      const colorMap: Record<string, string> = {
+        'connected': 'bg-green-500',
+        'disconnected': 'bg-gray-500',
+        'connecting': 'bg-yellow-500',
+        'error': 'bg-red-500'
+      };
+      dot.className = `w-2 h-2 rounded-full ${colorMap[status] || 'bg-gray-500'}`;
+    }
+    if (text) {
+      text.textContent = status === 'connecting' ? 'WebSocket...' : 'WebSocket';
     }
   }
   
@@ -334,26 +385,17 @@ class ClayWebTerminal {
     const dot = document.getElementById('bridge-dot');
     const text = document.getElementById('bridge-text');
     
-    if (dot && text) {
-      dot.className = 'status-dot';
-      switch (status) {
-        case 'connected':
-          dot.classList.add('connected');
-          text.textContent = 'Bridge';
-          break;
-        case 'disconnected':
-          dot.classList.add('disconnected');
-          text.textContent = 'Bridge';
-          break;
-        case 'connecting':
-          dot.classList.add('connecting');
-          text.textContent = 'Bridge...';
-          break;
-        case 'error':
-          dot.classList.add('error');
-          text.textContent = 'Bridge';
-          break;
-      }
+    if (dot) {
+      const colorMap: Record<string, string> = {
+        'connected': 'bg-green-500',
+        'disconnected': 'bg-gray-500',
+        'connecting': 'bg-yellow-500',
+        'error': 'bg-red-500'
+      };
+      dot.className = `w-2 h-2 rounded-full ${colorMap[status] || 'bg-gray-500'}`;
+    }
+    if (text) {
+      text.textContent = status === 'connecting' ? 'Bridge...' : 'Bridge';
     }
   }
 
@@ -361,26 +403,17 @@ class ClayWebTerminal {
     const dot = document.getElementById('ai-dot');
     const text = document.getElementById('ai-text');
     
-    if (dot && text) {
-      dot.className = 'status-dot';
-      switch (status) {
-        case 'ready':
-          dot.classList.add('connected');
-          text.textContent = 'AI Ready';
-          break;
-        case 'idle':
-          dot.classList.add('disconnected');
-          text.textContent = 'AI Idle';
-          break;
-        case 'thinking':
-          dot.classList.add('connecting');
-          text.textContent = 'AI Thinking...';
-          break;
-        case 'error':
-          dot.classList.add('error');
-          text.textContent = 'AI Error';
-          break;
-      }
+    if (dot) {
+      const statusMap: Record<string, string> = {
+        'idle': 'bg-gray-500',
+        'thinking': 'bg-yellow-500',
+        'ready': 'bg-green-500',
+        'error': 'bg-red-500'
+      };
+      dot.className = `w-2 h-2 rounded-full ${statusMap[status] || 'bg-gray-500'}`;
+    }
+    if (text) {
+      text.textContent = `AI: ${status}`;
     }
   }
 
@@ -1310,7 +1343,7 @@ class ClayWebTerminal {
 class SimpleAIAssistant {
   private conversationHistory: Array<{ role: string; content: string }> = [];
   private readonly API_BASE_URL = 'https://api.llm7.io/v1';
-  private readonly API_KEY = 'unused';
+  private readonly API_KEY = 'unused'; // llm7.io doesn't require API key for public models
   private currentModel: string = 'codestral-2501';
   
   private readonly AVAILABLE_MODELS = [
@@ -1364,22 +1397,31 @@ class SimpleAIAssistant {
         ...this.conversationHistory.filter(msg => msg.role !== 'system').slice(-10),
       ];
 
+      // llm7.io API call - no auth required for public models
       const response = await fetch(`${this.API_BASE_URL}/chat/completions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.API_KEY}`
+          // Note: llm7.io may not require Authorization header for free tier
+          ...(this.API_KEY !== 'unused' ? { 'Authorization': `Bearer ${this.API_KEY}` } : {})
         },
         body: JSON.stringify({
           model: this.currentModel,
           messages: messages,
           temperature: 0.7,
-          max_tokens: 2000
+          max_tokens: 2000,
+          stream: false
         })
       });
 
       if (!response.ok) {
-        const errorText = await response.text().catch(() => 'Unknown error');
+        let errorText = 'Unknown error';
+        try {
+          const errorData = await response.json();
+          errorText = errorData.error?.message || errorData.message || JSON.stringify(errorData);
+        } catch {
+          errorText = await response.text().catch(() => `HTTP ${response.status}`);
+        }
         throw new Error(`API Error: ${response.status} - ${errorText}`);
       }
 
@@ -2061,24 +2103,78 @@ function renderTerminalView(): void {
   const layout = document.createElement('div');
   layout.className = 'min-h-screen flex flex-col bg-gray-950';
   layout.innerHTML = `
-    <nav class="bg-gray-900 border-b border-gray-800 px-6 py-3">
-      <div class="flex items-center justify-between max-w-full">
-        <button id="back-home" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-lg font-medium transition-colors flex items-center gap-2">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
-          </svg>
-          Dashboard
-        </button>
-        <button id="theme-toggle-terminal" class="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors">
-          <svg id="sun-icon-terminal" class="w-5 h-5 text-gray-400 dark:hidden" fill="currentColor" viewBox="0 0 20 20">
-            <path fill-rule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clip-rule="evenodd"/>
-          </svg>
-          <svg id="moon-icon-terminal" class="w-5 h-5 text-gray-400 hidden dark:block" fill="currentColor" viewBox="0 0 20 20">
-            <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/>
-          </svg>
-        </button>
+    <!-- Status Bar -->
+    <div id="status-bar" class="bg-gray-900 border-b border-gray-800 px-4 py-2">
+      <div class="flex items-center justify-between gap-4">
+        <div class="flex items-center gap-4 flex-wrap">
+          <!-- Back Button -->
+          <button id="back-home" class="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded text-sm font-medium transition-colors flex items-center gap-1.5">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+            </svg>
+            Dashboard
+          </button>
+          
+          <!-- Status Indicators -->
+          <div class="flex items-center gap-3">
+            <div id="webvm-status" class="flex items-center gap-2 px-2 py-1 rounded bg-gray-800">
+              <div id="webvm-dot" class="w-2 h-2 rounded-full bg-gray-500"></div>
+              <span id="webvm-text" class="text-xs text-gray-300">WebVM</span>
+            </div>
+            
+            <div id="bridge-status" class="flex items-center gap-2 px-2 py-1 rounded bg-gray-800">
+              <div id="bridge-dot" class="w-2 h-2 rounded-full bg-gray-500"></div>
+              <span id="bridge-text" class="text-xs text-gray-300">Bridge</span>
+            </div>
+            
+            <div id="websocket-status" class="flex items-center gap-2 px-2 py-1 rounded bg-gray-800">
+              <div id="websocket-dot" class="w-2 h-2 rounded-full bg-gray-500"></div>
+              <span id="websocket-text" class="text-xs text-gray-300">WebSocket</span>
+            </div>
+            
+            <div id="ai-status" class="flex items-center gap-2 px-2 py-1 rounded bg-gray-800">
+              <div id="ai-dot" class="w-2 h-2 rounded-full bg-gray-500"></div>
+              <span id="ai-text" class="text-xs text-gray-300">AI</span>
+            </div>
+            
+            <div id="os-info" class="px-2 py-1 rounded bg-gray-800">
+              <span id="os-text" class="text-xs text-gray-300">OS: Unknown</span>
+            </div>
+            
+            <div id="cpu-usage" class="px-2 py-1 rounded bg-gray-800">
+              <span id="cpu-text" class="text-xs text-gray-300">CPU: --</span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Right Side Actions -->
+        <div class="flex items-center gap-2">
+          <!-- Model Selector -->
+          <select id="model-select" class="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded text-xs font-medium border border-gray-700 cursor-pointer">
+            <option value="codestral-2501">Codestral 2501</option>
+            <option value="mistral-small-3.1-24b-instruct-2503">Mistral Small</option>
+            <option value="deepseek-v3.1">DeepSeek V3.1</option>
+            <option value="gpt-5-mini">GPT-5 Mini</option>
+            <option value="gpt-4.1-nano-2025-04-14">GPT-4.1 Nano</option>
+            <option value="gpt-5-chat">GPT-5 Chat</option>
+            <option value="gemini-2.5-flash-lite">Gemini 2.5</option>
+            <option value="codestral-2405">Codestral 2405</option>
+          </select>
+          
+          <!-- Theme Toggle -->
+          <button id="theme-toggle-terminal" class="p-1.5 rounded bg-gray-800 hover:bg-gray-700 transition-colors">
+            <svg id="sun-icon-terminal" class="w-4 h-4 text-gray-400 dark:hidden" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clip-rule="evenodd"/>
+            </svg>
+            <svg id="moon-icon-terminal" class="w-4 h-4 text-gray-400 hidden dark:block" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/>
+            </svg>
+          </button>
+        </div>
       </div>
-    </nav>
+    </div>
+    
+    <!-- Terminal Container -->
     <div class="flex-1 overflow-hidden bg-gray-950 p-4">
       <div id="terminal" class="w-full h-full bg-gray-950 rounded-lg border border-gray-800 shadow-2xl"></div>
     </div>

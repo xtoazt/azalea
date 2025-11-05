@@ -192,14 +192,14 @@ export class BridgeBackend {
     return this.sessionId;
   }
 
-  async executeCommand(command: string, cwd?: string): Promise<{ output: string; exitCode: number }> {
+  async executeCommand(command: string, cwd?: string, root: boolean = false, privileged: boolean = false): Promise<{ output: string; exitCode: number }> {
     try {
       const response = await fetch('http://127.0.0.1:8765/api/execute', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ command, cwd })
+        body: JSON.stringify({ command, cwd, root, privileged })
       });
 
       const data = await response.json();
@@ -221,6 +221,39 @@ export class BridgeBackend {
       return await response.json();
     } catch (error: any) {
       return null;
+    }
+  }
+
+  async executeRootCommand(command: string, cwd?: string): Promise<{ output: string; exitCode: number }> {
+    return this.executeCommand(command, cwd, true, false);
+  }
+
+  async executePrivilegedCommand(command: string, cwd?: string): Promise<{ output: string; exitCode: number }> {
+    return this.executeCommand(command, cwd, false, true);
+  }
+
+  async getKernelParam(param: string): Promise<string> {
+    try {
+      const response = await fetch(`http://127.0.0.1:8765/api/system/kernel-param?param=${encodeURIComponent(param)}`);
+      const data = await response.json();
+      return data.value || '';
+    } catch (error: any) {
+      throw new Error(`Failed to read kernel parameter: ${error.message}`);
+    }
+  }
+
+  async setKernelParam(param: string, value: string): Promise<void> {
+    try {
+      const response = await fetch('http://127.0.0.1:8765/api/system/kernel-param', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ param, value })
+      });
+      if (!response.ok) {
+        throw new Error('Failed to set kernel parameter');
+      }
+    } catch (error: any) {
+      throw new Error(`Failed to set kernel parameter: ${error.message}`);
     }
   }
 

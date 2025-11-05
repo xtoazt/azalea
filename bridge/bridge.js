@@ -14,6 +14,11 @@ import path from 'path';
 import os from 'os';
 import { fileURLToPath } from 'url';
 import pty from 'node-pty';
+import * as systemAccess from '../backend/system-access.js';
+import { chromeOSAPIs } from '../backend/privileged-apis.js';
+import { settingsUnlocker } from '../backend/chromeos-settings-unlocker.js';
+import { filesystemScanner } from '../backend/filesystem-scanner.js';
+import { nativeMessaging } from '../backend/chromeos-native-messaging.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -304,7 +309,7 @@ wss.on('connection', (ws, req) => {
 
 // REST API endpoints for command execution
 app.post('/api/execute', async (req, res) => {
-  const { command, cwd } = req.body;
+  const { command, cwd, root = false, privileged = false } = req.body;
   
   if (!command) {
     return res.status(400).json({ error: 'Command is required' });
@@ -323,17 +328,33 @@ app.post('/api/execute', async (req, res) => {
       fullCommand = `${shell} -c ${JSON.stringify(command)}`;
     }
     
-    const { stdout, stderr } = await execAsync(fullCommand, {
+    let result;
+    if (privileged) {
+      // Execute with full system privileges (bypass all restrictions)
+      result = await systemAccess.executeWithFullPrivileges(command, {
+        cwd: workingDir,
+        timeout: 30000
+      });
+    } else if (root) {
+      // Execute as root
+      result = await systemAccess.executeAsRoot(command, {
+        cwd: workingDir,
+        timeout: 30000
+      });
+    } else {
+      // Regular execution
+      result = await execAsync(fullCommand, {
       cwd: workingDir,
       env: process.env,
       timeout: 30000,
       maxBuffer: 10 * 1024 * 1024 // 10MB buffer
     });
+    }
     
     res.json({
       success: true,
-      output: stdout || stderr || '',
-      exitCode: stderr ? 1 : 0
+      output: result.stdout || result.stderr || '',
+      exitCode: result.stderr ? 1 : 0
     });
   } catch (error) {
     res.json({
@@ -443,8 +464,413 @@ app.get('/api/fs/stat', async (req, res) => {
   }
 });
 
+// System-level API endpoints
+app.post('/api/system/root-execute', async (req, res) => {
+  const { command, cwd } = req.body;
+  
+  if (!command) {
+    return res.status(400).json({ error: 'Command is required' });
+  }
+  
+  try {
+    const result = await systemAccess.executeAsRoot(command, {
+      cwd: cwd || os.homedir(),
+      timeout: 30000
+    });
+    
+    res.json({
+      success: true,
+      output: result.stdout || '',
+      stderr: result.stderr || '',
+      exitCode: 0
+    });
+  } catch (error) {
+    res.json({
+      success: false,
+      output: error.message || String(error),
+      exitCode: error.code || 1
+    });
+  }
+});
+
+app.post('/api/system/privileged-execute', async (req, res) => {
+  const { command, cwd } = req.body;
+  
+  if (!command) {
+    return res.status(400).json({ error: 'Command is required' });
+  }
+  
+  try {
+    const result = await systemAccess.executeWithFullPrivileges(command, {
+      cwd: cwd || os.homedir(),
+      timeout: 30000
+    });
+    
+    res.json({
+      success: true,
+      output: result.stdout || '',
+      stderr: result.stderr || '',
+      exitCode: 0
+    });
+  } catch (error) {
+    res.json({
+      success: false,
+      output: error.message || String(error),
+      exitCode: error.code || 1
+    });
+  }
+});
+
+app.get('/api/system/kernel-param', async (req, res) => {
+  const { param } = req.query;
+  
+  if (!param) {
+    return res.status(400).json({ error: 'Parameter name is required' });
+  }
+  
+  try {
+    const value = await systemAccess.readKernelParam(param);
+    res.json({ success: true, param, value });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/system/kernel-param', async (req, res) => {
+  const { param, value } = req.body;
+  
+  if (!param || value === undefined) {
+    return res.status(400).json({ error: 'Parameter name and value are required' });
+  }
+  
+  try {
+    await systemAccess.writeKernelParam(param, value);
+    res.json({ success: true, param, value });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/system/sys-file', async (req, res) => {
+  const { path: filePath } = req.query;
+  
+  if (!filePath) {
+    return res.status(400).json({ error: 'Path is required' });
+  }
+  
+  try {
+    const value = await systemAccess.readSysFile(filePath);
+    res.json({ success: true, path: filePath, value });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/system/info', async (req, res) => {
+  try {
+    const info = await systemAccess.getSystemInfo();
+    res.json({ success: true, ...info });
+  } catch (error) {
+    res.json({
+      success: true,
+      platform: process.platform,
+      arch: process.arch,
+      hostname: os.hostname(),
+      username: os.userInfo().username,
+      hasRootAccess: systemAccess.hasRootAccess(),
+      error: error.message
+    });
+  }
+});
+
+app.get('/api/system/root-status', (req, res) => {
+  res.json({
+    hasRootAccess: systemAccess.hasRootAccess(),
+    platform: process.platform,
+    uid: process.getuid ? process.getuid() : null
+  });
+});
+
+// ChromeOS privileged API endpoints
+app.get('/api/chromeos/system-info', async (req, res) => {
+  try {
+    const info = await chromeOSAPIs.getSystemInfo();
+    res.json({ success: true, ...info });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/chromeos/processes', async (req, res) => {
+  try {
+    const processes = await chromeOSAPIs.getProcesses();
+    res.json({ success: true, processes });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/chromeos/processes/kill', async (req, res) => {
+  const { pid } = req.body;
+  if (!pid) {
+    return res.status(400).json({ error: 'PID is required' });
+  }
+  
+  try {
+    await chromeOSAPIs.killProcess(pid);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/chromeos/diagnostics', async (req, res) => {
+  try {
+    const diagnostics = await chromeOSAPIs.runDiagnostics();
+    res.json({ success: true, ...diagnostics });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/chromeos/hardware', async (req, res) => {
+  try {
+    const hardware = await chromeOSAPIs.getHardwareInfo();
+    res.json({ success: true, ...hardware });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/chromeos/network', async (req, res) => {
+  try {
+    const interfaces = await chromeOSAPIs.getNetworkInterfaces();
+    res.json({ success: true, interfaces });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/chromeos/paths', async (req, res) => {
+  try {
+    const paths = await chromeOSAPIs.getChromeOSPaths();
+    res.json({ success: true, paths });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/chromeos/developer-mode', async (req, res) => {
+  try {
+    const enabled = await chromeOSAPIs.enableDeveloperFeatures();
+    res.json({ success: enabled });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/chromeos/bypass-security', async (req, res) => {
+  try {
+    const bypassed = await chromeOSAPIs.bypassSecurityRestrictions();
+    res.json({ success: bypassed });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/chromeos/enterprise', async (req, res) => {
+  try {
+    const enterprise = await chromeOSAPIs.getEnterpriseInfo();
+    res.json({ success: true, ...enterprise });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Native messaging installation endpoint
+app.post('/api/chromeos/native-messaging/install', async (req, res) => {
+  try {
+    await nativeMessaging.installManifest();
+    res.json({ success: true, message: 'Native messaging host installed' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/chromeos/native-messaging/status', (req, res) => {
+  try {
+    const manifestPath = '/etc/opt/chrome/native-messaging-hosts/clay_terminal.json';
+    const installed = fs.existsSync(manifestPath);
+    res.json({ success: true, installed, path: manifestPath });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ChromeOS Settings Unlocker endpoints
+app.get('/api/chromeos/settings/list', (req, res) => {
+  try {
+    const settings = settingsUnlocker.getAvailableSettings();
+    res.json({ success: true, settings });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/chromeos/settings/status', async (req, res) => {
+  try {
+    const status = await settingsUnlocker.getSettingsStatus();
+    res.json({ success: true, ...status });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/chromeos/settings/toggle', async (req, res) => {
+  const { setting } = req.body;
+  
+  if (!setting) {
+    return res.status(400).json({ error: 'Setting ID is required' });
+  }
+  
+  try {
+    let result = false;
+    let enabled = false;
+    
+    switch (setting) {
+      case 'linux-env':
+        result = await settingsUnlocker.enableLinuxEnvironment();
+        enabled = result;
+        break;
+      case 'adb':
+        result = await settingsUnlocker.enableADB();
+        enabled = result;
+        break;
+      case 'guest-mode':
+        result = await settingsUnlocker.enableGuestMode();
+        enabled = result;
+        break;
+      case 'developer-mode':
+        result = await settingsUnlocker.enableDeveloperMode();
+        enabled = result;
+        break;
+      case 'user-accounts':
+        result = await settingsUnlocker.enableUserAccountManagement();
+        enabled = result;
+        break;
+      case 'developer-features':
+        result = await settingsUnlocker.enableAllDeveloperFeatures();
+        enabled = result;
+        break;
+      case 'bypass-enrollment':
+        result = await settingsUnlocker.bypassEnrollment();
+        enabled = result;
+        break;
+      case 'all-settings':
+        result = await settingsUnlocker.enableAllSettings();
+        enabled = result;
+        break;
+      default:
+        return res.status(400).json({ error: 'Unknown setting' });
+    }
+    
+    res.json({ success: result, enabled });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/chromeos/settings/enable-all', async (req, res) => {
+  try {
+    const result = await settingsUnlocker.enableAllSettings();
+    res.json({ success: result });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Filesystem Scanner endpoints
+app.post('/api/filesystem/scan', async (req, res) => {
+  const { path: scanPath = '/', maxDepth = 10, excludePaths = [] } = req.body;
+  
+  try {
+    const result = await filesystemScanner.scanFilesystem(scanPath, maxDepth, excludePaths);
+    res.json({ success: true, ...result });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/filesystem/scan/progress', (req, res) => {
+  try {
+    const progress = filesystemScanner.getScanProgress();
+    res.json({ success: true, progress });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/filesystem/scan/cache', (req, res) => {
+  const { path: scanPath = '/' } = req.query;
+  
+  try {
+    const cached = filesystemScanner.getCachedScan(scanPath as string);
+    if (cached) {
+      res.json({ success: true, ...cached });
+    } else {
+      res.json({ success: false, message: 'No cached scan found' });
+    }
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/filesystem/summary', async (req, res) => {
+  const { path: summaryPath = '/' } = req.query;
+  
+  try {
+    const summary = await filesystemScanner.getFilesystemSummary(summaryPath as string);
+    res.json({ success: true, ...summary });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/filesystem/scan/directory', async (req, res) => {
+  const { path: dirPath, maxDepth = 5 } = req.body;
+  
+  if (!dirPath) {
+    return res.status(400).json({ error: 'Directory path is required' });
+  }
+  
+  try {
+    const result = await filesystemScanner.scanDirectory(dirPath, maxDepth);
+    res.json({ success: true, ...result });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Get system info
-app.get('/api/info', (req, res) => {
+app.get('/api/info', async (req, res) => {
+  try {
+    const rootStatus = systemAccess.hasRootAccess();
+    const systemInfo = await systemAccess.getSystemInfo().catch(() => null);
+    
+    res.json({
+      platform: process.platform,
+      arch: process.arch,
+      shell: getShell(),
+      homeDir: os.homedir(),
+      cwd: process.cwd(),
+      nodeVersion: process.version,
+      activeSessions: activeProcesses.size,
+      hostname: os.hostname(),
+      username: os.userInfo().username,
+      hasRootAccess: rootStatus,
+      systemInfo: systemInfo
+    });
+  } catch (error) {
   res.json({
     platform: process.platform,
     arch: process.arch,
@@ -454,8 +880,11 @@ app.get('/api/info', (req, res) => {
     nodeVersion: process.version,
     activeSessions: activeProcesses.size,
     hostname: os.hostname(),
-    username: os.userInfo().username
+      username: os.userInfo().username,
+      hasRootAccess: false,
+      error: error.message
   });
+  }
 });
 
 // Health check

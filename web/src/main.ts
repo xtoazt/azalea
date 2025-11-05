@@ -2,10 +2,22 @@ import { Terminal } from 'xterm';
 import { FitAddon } from 'xterm-addon-fit';
 import { WebLinksAddon } from 'xterm-addon-web-links';
 import { CanvasAddon } from 'xterm-addon-canvas';
+import { ImageAddon } from 'xterm-addon-image';
+import { LigaturesAddon } from 'xterm-addon-ligatures';
+import { SearchAddon } from 'xterm-addon-search';
+import { Unicode11Addon } from 'xterm-addon-unicode11';
 import { BridgeBackend } from './bridge-backend';
+import type { BridgeBackend as BridgeBackendType } from './bridge-backend';
 import { WebWorkerBackendWrapper } from './backend-worker-wrapper';
 import { SessionEncoder } from './session-encoder';
 import { initializeHTML } from './html-generator';
+import { notificationManager } from './components/notification';
+import { shortcutManager } from './utils/keyboard-shortcuts';
+import { commandPalette } from './components/command-palette';
+import { tabBar } from './components/tab-bar';
+import { TerminalTab } from './types/terminal';
+import { getWebLLMService } from './backend-webllm';
+import { settingsUnlockerUI } from './components/settings-unlocker';
 import './app.css';
 
 // Helper to get hostname (fallback for browser)
@@ -43,12 +55,16 @@ function isChromeOS(): boolean {
 class ClayWebTerminal {
   private terminal: Terminal;
   private fitAddon: FitAddon;
+  private searchAddon: SearchAddon;
+  private imageAddon: ImageAddon;
+  private ligaturesAddon: LigaturesAddon;
+  private unicode11Addon: Unicode11Addon;
   private backend: BridgeBackend | WebWorkerBackendWrapper | null = null;
   private isConnected: boolean = false;
   private commandHistory: string[] = [];
   private historyIndex: number = -1;
   private currentLine: string = '';
-  private aiAssistant: SimpleAIAssistant;
+  private aiAssistant: ReturnType<typeof getWebLLMService> | null = null;
   private currentDirectory: string = '';
   private lastError: { command: string; output: string; timestamp: number } | null = null;
   private aiControlEnabled: boolean = false;
@@ -73,6 +89,13 @@ class ClayWebTerminal {
   private lastSearchResults: any[] = []; // Store last search results for AI/terminal access
   private lastSearchQuery: string = ''; // Store last search query
   private searchStatus: 'idle' | 'searching' | 'ready' = 'idle';
+  private terminalSearchOpen: boolean = false;
+  private terminalSearchElement: HTMLElement | null = null;
+  private tabs: TerminalTab[] = [];
+  private activeTabId: string | null = null;
+  private tabCounter: number = 0;
+  private filesystemContext: any = null; // Store scanned filesystem data
+  private isScanning: boolean = false;
 
   constructor() {
     // Redesigned terminal with modern dark theme
@@ -112,17 +135,30 @@ class ClayWebTerminal {
     });
 
     this.fitAddon = new FitAddon();
+    this.searchAddon = new SearchAddon();
+    this.imageAddon = new ImageAddon();
+    this.ligaturesAddon = new LigaturesAddon();
+    this.unicode11Addon = new Unicode11Addon();
+    
     this.terminal.loadAddon(this.fitAddon);
     this.terminal.loadAddon(new WebLinksAddon());
     this.terminal.loadAddon(new CanvasAddon());
+    this.terminal.loadAddon(this.unicode11Addon);
+    this.terminal.loadAddon(this.searchAddon);
+    this.terminal.loadAddon(this.imageAddon);
+    this.terminal.loadAddon(this.ligaturesAddon);
 
-    // AI Assistant - ALWAYS initialize, regardless of backend
+    // AI Assistant - Initialize WebLLM with JOSIEFIED model
     try {
-      this.aiAssistant = new SimpleAIAssistant();
+      this.aiAssistant = getWebLLMService();
+      // Initialize asynchronously (don't block startup)
+      this.aiAssistant.initialize().catch(error => {
+        console.error('Failed to initialize WebLLM:', error);
+        notificationManager.warning('WebLLM initialization failed. AI features will be available after model loads.');
+      });
     } catch (error) {
-      console.error('Failed to initialize AI assistant:', error);
-      // Create a fallback AI assistant that always works
-      this.aiAssistant = new SimpleAIAssistant();
+      console.error('Failed to create WebLLM service:', error);
+      this.aiAssistant = null;
     }
     
     this.isChromeOS = isChromeOS();
@@ -139,6 +175,11 @@ class ClayWebTerminal {
       this.setupBackend();
       this.initializeStatusBar();
       this.checkForShareLink();
+      this.setupKeyboardShortcuts();
+      this.setupCommandPalette();
+      this.initializeTabSystem();
+      this.setupScanButton();
+      this.setupSettingsUnlocker();
       
       // Initialize Lucide icons
       if (typeof (window as any).lucide !== 'undefined') {
@@ -240,15 +281,23 @@ class ClayWebTerminal {
       this.updateSearchStatus(this.searchStatus); // Refresh search status display
     }, 2000);
     
-    // Setup model selector
+    // Setup model selector (quantization options for JOSIEFIED)
     const modelSelect = document.getElementById('model-select') as HTMLSelectElement;
-    if (modelSelect && this.aiAssistant) {
-      const currentModel = this.aiAssistant.getCurrentModel();
-      modelSelect.value = currentModel;
-      modelSelect.addEventListener('change', () => {
+    if (modelSelect) {
+      // Update options for WebLLM quantization levels
+      modelSelect.innerHTML = `
+        <option value="q4f16_1">JOSIEFIED Q4 (Fast)</option>
+        <option value="q4f32_1">JOSIEFIED Q4 F32</option>
+        <option value="q8f16_1">JOSIEFIED Q8 (Better Quality)</option>
+        <option value="f16">JOSIEFIED F16 (Best Quality)</option>
+      `;
+      modelSelect.value = 'q4f16_1';
+      modelSelect.addEventListener('change', async () => {
         if (this.aiAssistant) {
-          this.aiAssistant.setModel(modelSelect.value);
-          this.terminal.write(`\r\n\x1b[32m[AI]\x1b[0m Model changed to: ${modelSelect.value}\r\n`);
+          const quantization = modelSelect.value as 'q4f16_1' | 'q4f32_1' | 'q8f16_1' | 'f16';
+          this.aiAssistant.updateConfig({ quantization });
+          this.terminal.write(`\r\n\x1b[32m[AI]\x1b[0m Quantization changed to: ${quantization}\r\n`);
+          this.terminal.write(`\x1b[33m[INFO]\x1b[0m Model will reload with new quantization on next use.\r\n`);
           this.writePrompt();
         }
       });
@@ -1028,6 +1077,13 @@ echo $! > /tmp/clay-bridge.pid
         return false;
       }
       
+      // Ctrl+F for terminal search
+      if ((event.ctrlKey || event.metaKey) && event.key === 'f') {
+        event.preventDefault();
+        this.openTerminalSearch();
+        return false;
+      }
+      
       // Ctrl+R for history search
       if ((event.ctrlKey || event.metaKey) && event.key === 'r') {
         event.preventDefault();
@@ -1036,10 +1092,16 @@ echo $! > /tmp/clay-bridge.pid
       }
       
       // Escape to cancel search
-      if (event.key === 'Escape' && this.historySearchMode) {
-        event.preventDefault();
-        this.cancelHistorySearch();
-        return false;
+      if (event.key === 'Escape') {
+        if (this.historySearchMode) {
+          event.preventDefault();
+          this.cancelHistorySearch();
+          return false;
+        } else if (this.terminalSearchOpen) {
+          event.preventDefault();
+          this.closeTerminalSearch();
+          return false;
+        }
       }
       
       return true;
@@ -1062,9 +1124,10 @@ echo $! > /tmp/clay-bridge.pid
         if (selection && selection.length > 0) {
           // Copy selected text
           navigator.clipboard.writeText(selection).then(() => {
-            this.terminal.write(`\r\n\x1b[32m[Copied to clipboard]\x1b[0m\r\n`);
-            this.writePrompt();
-          }).catch(() => {});
+            notificationManager.success(`Copied ${selection.length} character${selection.length !== 1 ? 's' : ''} to clipboard`);
+          }).catch(() => {
+            notificationManager.error('Failed to copy to clipboard');
+          });
           return false;
         }
         // If no selection, let it through as interrupt (Ctrl+C)
@@ -1090,9 +1153,10 @@ echo $! > /tmp/clay-bridge.pid
       const selection = this.terminal.getSelection();
       if (selection && selection.length > 0) {
         navigator.clipboard.writeText(selection).then(() => {
-          this.terminal.write(`\r\n\x1b[32m[Copied to clipboard]\x1b[0m\r\n`);
-          this.writePrompt();
-        }).catch(() => {});
+          notificationManager.success(`Copied ${selection.length} character${selection.length !== 1 ? 's' : ''} to clipboard`);
+        }).catch(() => {
+          notificationManager.error('Failed to copy to clipboard');
+        });
       }
     });
 
@@ -1101,13 +1165,497 @@ echo $! > /tmp/clay-bridge.pid
       const selection = this.terminal.getSelection();
       if (selection && selection.length > 0) {
         navigator.clipboard.writeText(selection).then(() => {
-          this.terminal.write(`\r\n\x1b[32m[Copied to clipboard]\x1b[0m\r\n`);
-          this.writePrompt();
-        }).catch(() => {});
+          notificationManager.success(`Copied ${selection.length} character${selection.length !== 1 ? 's' : ''} to clipboard`);
+        }).catch(() => {
+          notificationManager.error('Failed to copy to clipboard');
+        });
       }
     });
 
     this.printWelcomeMessage();
+    this.createTerminalSearchUI();
+  }
+
+  private createTerminalSearchUI(): void {
+    const terminalElement = document.getElementById('terminal');
+    if (!terminalElement) return;
+
+    const searchContainer = document.createElement('div');
+    searchContainer.id = 'terminal-search-container';
+    searchContainer.className = 'absolute top-4 right-4 z-50 hidden';
+    searchContainer.innerHTML = `
+      <div class="bg-gray-900/95 backdrop-blur-lg border border-gray-700 rounded-lg shadow-2xl p-3 min-w-[400px]">
+        <div class="flex items-center gap-2">
+          <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+          </svg>
+          <input 
+            type="text" 
+            id="terminal-search-input" 
+            placeholder="Search in terminal..." 
+            class="flex-1 bg-transparent text-gray-200 placeholder-gray-500 outline-none text-sm"
+            autocomplete="off"
+          />
+          <div class="flex items-center gap-2">
+            <button id="terminal-search-prev" class="p-1.5 hover:bg-gray-800 rounded text-gray-400 hover:text-gray-200 transition" title="Previous (Shift+Enter)">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/>
+              </svg>
+            </button>
+            <button id="terminal-search-next" class="p-1.5 hover:bg-gray-800 rounded text-gray-400 hover:text-gray-200 transition" title="Next (Enter)">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+              </svg>
+            </button>
+            <button id="terminal-search-case" class="px-2 py-1 text-xs text-gray-400 hover:text-gray-200 hover:bg-gray-800 rounded transition" title="Case sensitive">
+              Aa
+            </button>
+            <button id="terminal-search-regex" class="px-2 py-1 text-xs text-gray-400 hover:text-gray-200 hover:bg-gray-800 rounded transition" title="Regex">
+              .*
+            </button>
+            <button id="terminal-search-close" class="p-1.5 hover:bg-gray-800 rounded text-gray-400 hover:text-gray-200 transition" title="Close (Esc)">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div id="terminal-search-results" class="text-xs text-gray-500 mt-2 hidden">
+          <span id="terminal-search-count">0</span> matches
+        </div>
+      </div>
+    `;
+    
+    terminalElement.style.position = 'relative';
+    terminalElement.appendChild(searchContainer);
+    this.terminalSearchElement = searchContainer;
+
+    // Setup event handlers
+    const input = document.getElementById('terminal-search-input') as HTMLInputElement;
+    const prevBtn = document.getElementById('terminal-search-prev');
+    const nextBtn = document.getElementById('terminal-search-next');
+    const caseBtn = document.getElementById('terminal-search-case');
+    const regexBtn = document.getElementById('terminal-search-regex');
+    const closeBtn = document.getElementById('terminal-search-close');
+
+    let caseSensitive = false;
+    let regex = false;
+
+    const performSearch = () => {
+      const query = input.value;
+      if (query) {
+        this.searchAddon.findNext(query, { caseSensitive, regex });
+        this.updateSearchResults();
+      } else {
+        this.searchAddon.clearActiveDecoration();
+      }
+    };
+
+    input.addEventListener('input', performSearch);
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        this.searchAddon.findNext(input.value, { caseSensitive, regex });
+        this.updateSearchResults();
+      } else if (e.key === 'Enter' && e.shiftKey) {
+        e.preventDefault();
+        this.searchAddon.findPrevious(input.value, { caseSensitive, regex });
+        this.updateSearchResults();
+      }
+    });
+
+    prevBtn?.addEventListener('click', () => {
+      if (input.value) {
+        this.searchAddon.findPrevious(input.value, { caseSensitive, regex });
+        this.updateSearchResults();
+      }
+    });
+
+    nextBtn?.addEventListener('click', () => {
+      if (input.value) {
+        this.searchAddon.findNext(input.value, { caseSensitive, regex });
+        this.updateSearchResults();
+      }
+    });
+
+    caseBtn?.addEventListener('click', () => {
+      caseSensitive = !caseSensitive;
+      caseBtn.classList.toggle('bg-blue-600', caseSensitive);
+      caseBtn.classList.toggle('text-white', caseSensitive);
+      performSearch();
+    });
+
+    regexBtn?.addEventListener('click', () => {
+      regex = !regex;
+      regexBtn.classList.toggle('bg-blue-600', regex);
+      regexBtn.classList.toggle('text-white', regex);
+      performSearch();
+    });
+
+    closeBtn?.addEventListener('click', () => {
+      this.closeTerminalSearch();
+    });
+  }
+
+  private updateSearchResults(): void {
+    // This would need to be enhanced with actual match counting
+    // For now, we'll just show the search is active
+    const resultsEl = document.getElementById('terminal-search-results');
+    const countEl = document.getElementById('terminal-search-count');
+    if (resultsEl && countEl) {
+      resultsEl.classList.remove('hidden');
+      // Note: xterm-addon-search doesn't expose match count directly
+      // This is a placeholder - would need custom implementation
+      countEl.textContent = 'Searching...';
+    }
+  }
+
+  private openTerminalSearch(): void {
+    if (!this.terminalSearchElement) return;
+    this.terminalSearchOpen = true;
+    this.terminalSearchElement.classList.remove('hidden');
+    const input = document.getElementById('terminal-search-input') as HTMLInputElement;
+    if (input) {
+      setTimeout(() => input.focus(), 50);
+    }
+  }
+
+  private closeTerminalSearch(): void {
+    if (!this.terminalSearchElement) return;
+    this.terminalSearchOpen = false;
+    this.terminalSearchElement.classList.add('hidden');
+    this.searchAddon.clearActiveDecoration();
+    const input = document.getElementById('terminal-search-input') as HTMLInputElement;
+    if (input) {
+      input.value = '';
+    }
+    const resultsEl = document.getElementById('terminal-search-results');
+    if (resultsEl) {
+      resultsEl.classList.add('hidden');
+    }
+  }
+
+  private setupKeyboardShortcuts(): void {
+    // Zoom in/out
+    shortcutManager.register({
+      key: '=',
+      ctrl: true,
+      callback: () => {
+        const currentSize = this.terminal.options.fontSize || 14;
+        const newSize = Math.min(currentSize + 1, 24);
+        this.terminal.options.fontSize = newSize;
+        this.fitAddon.fit();
+        notificationManager.info(`Font size: ${newSize}px`);
+      },
+      description: 'Zoom in'
+    });
+
+    shortcutManager.register({
+      key: '-',
+      ctrl: true,
+      callback: () => {
+        const currentSize = this.terminal.options.fontSize || 14;
+        const newSize = Math.max(currentSize - 1, 12);
+        this.terminal.options.fontSize = newSize;
+        this.fitAddon.fit();
+        notificationManager.info(`Font size: ${newSize}px`);
+      },
+      description: 'Zoom out'
+    });
+
+    shortcutManager.register({
+      key: '0',
+      ctrl: true,
+      callback: () => {
+        this.terminal.options.fontSize = 14;
+        this.fitAddon.fit();
+        notificationManager.info('Font size reset to 14px');
+      },
+      description: 'Reset zoom'
+    });
+
+    // Clear terminal (Ctrl+Shift+K)
+    shortcutManager.register({
+      key: 'k',
+      ctrl: true,
+      shift: true,
+      callback: () => {
+        this.terminal.clear();
+        notificationManager.info('Terminal cleared');
+      },
+      description: 'Clear terminal'
+    });
+
+    // Settings (Ctrl+Shift+,)
+    shortcutManager.register({
+      key: ',',
+      ctrl: true,
+      shift: true,
+      callback: () => {
+        // Will be implemented with settings panel
+        notificationManager.info('Settings panel coming soon');
+      },
+      description: 'Open settings'
+    });
+
+    // Command palette (Ctrl+Shift+P)
+    shortcutManager.register({
+      key: 'p',
+      ctrl: true,
+      shift: true,
+      callback: () => {
+        commandPalette.toggle();
+      },
+      description: 'Command palette'
+    });
+  }
+
+  private setupCommandPalette(): void {
+    // Register commands
+    commandPalette.register({
+      id: 'new-tab',
+      label: 'New Tab',
+      description: 'Create a new terminal tab',
+      shortcut: 'Ctrl+Shift+T',
+      category: 'Terminal',
+      callback: () => {
+        this.createNewTab();
+      }
+    });
+
+    commandPalette.register({
+      id: 'clear',
+      label: 'Clear Terminal',
+      description: 'Clear the terminal screen',
+      shortcut: 'Ctrl+Shift+K',
+      category: 'Terminal',
+      callback: () => {
+        this.terminal.clear();
+        notificationManager.info('Terminal cleared');
+      }
+    });
+
+    commandPalette.register({
+      id: 'search',
+      label: 'Search in Terminal',
+      description: 'Search for text in terminal output',
+      shortcut: 'Ctrl+F',
+      category: 'Terminal',
+      callback: () => {
+        this.openTerminalSearch();
+      }
+    });
+
+    commandPalette.register({
+      id: 'zoom-in',
+      label: 'Zoom In',
+      description: 'Increase font size',
+      shortcut: 'Ctrl+=',
+      category: 'View',
+      callback: () => {
+        const currentSize = this.terminal.options.fontSize || 14;
+        const newSize = Math.min(currentSize + 1, 24);
+        this.terminal.options.fontSize = newSize;
+        this.fitAddon.fit();
+        notificationManager.info(`Font size: ${newSize}px`);
+      }
+    });
+
+    commandPalette.register({
+      id: 'zoom-out',
+      label: 'Zoom Out',
+      description: 'Decrease font size',
+      shortcut: 'Ctrl+-',
+      category: 'View',
+      callback: () => {
+        const currentSize = this.terminal.options.fontSize || 14;
+        const newSize = Math.max(currentSize - 1, 12);
+        this.terminal.options.fontSize = newSize;
+        this.fitAddon.fit();
+        notificationManager.info(`Font size: ${newSize}px`);
+      }
+    });
+
+    commandPalette.register({
+      id: 'reset-zoom',
+      label: 'Reset Zoom',
+      description: 'Reset font size to default',
+      shortcut: 'Ctrl+0',
+      category: 'View',
+      callback: () => {
+        this.terminal.options.fontSize = 14;
+        this.fitAddon.fit();
+        notificationManager.info('Font size reset to 14px');
+      }
+    });
+
+    commandPalette.register({
+      id: 'settings',
+      label: 'Open Settings',
+      description: 'Open terminal settings',
+      shortcut: 'Ctrl+Shift+,',
+      category: 'Settings',
+      callback: () => {
+        notificationManager.info('Settings panel coming soon');
+      }
+    });
+  }
+
+  private initializeTabSystem(): void {
+    // Initialize tab bar
+    tabBar.initialize({
+      onTabCreate: () => {
+        this.createNewTab();
+      },
+      onTabClose: (tabId: string) => {
+        this.closeTab(tabId);
+      },
+      onTabSwitch: (tabId: string) => {
+        this.switchTab(tabId);
+      },
+      onTabRename: (tabId: string, newTitle: string) => {
+        this.renameTab(tabId, newTitle);
+      }
+    });
+
+    // Create initial tab with current terminal
+    const initialTab: TerminalTab = {
+      id: `tab-${++this.tabCounter}`,
+      title: 'Terminal 1',
+      terminal: this.terminal,
+      backend: this.backend,
+      isActive: true,
+      createdAt: Date.now(),
+      sessionCommands: []
+    };
+
+    this.tabs.push(initialTab);
+    this.activeTabId = initialTab.id;
+    tabBar.addTab(initialTab);
+
+    // Add keyboard shortcuts for tabs
+    shortcutManager.register({
+      key: 't',
+      ctrl: true,
+      shift: true,
+      callback: () => {
+        this.createNewTab();
+      },
+      description: 'New tab'
+    });
+
+    shortcutManager.register({
+      key: 'w',
+      ctrl: true,
+      callback: () => {
+        if (this.activeTabId) {
+          this.closeTab(this.activeTabId);
+        }
+      },
+      description: 'Close tab'
+    });
+
+    shortcutManager.register({
+      key: 'Tab',
+      ctrl: true,
+      callback: () => {
+        this.switchToNextTab();
+      },
+      description: 'Next tab'
+    });
+
+    shortcutManager.register({
+      key: 'Tab',
+      ctrl: true,
+      shift: true,
+      callback: () => {
+        this.switchToPreviousTab();
+      },
+      description: 'Previous tab'
+    });
+  }
+
+  private createNewTab(): void {
+    // For now, just show a notification
+    // Full implementation would create a new terminal instance
+    notificationManager.info('Multi-terminal tabs coming soon. Current terminal supports all features.');
+    
+    // TODO: Create new terminal instance per tab
+    // const newTab: TerminalTab = {
+    //   id: `tab-${++this.tabCounter}`,
+    //   title: `Terminal ${this.tabCounter}`,
+    //   terminal: new Terminal(...),
+    //   backend: null,
+    //   isActive: false,
+    //   createdAt: Date.now(),
+    //   sessionCommands: []
+    // };
+    // this.tabs.push(newTab);
+    // tabBar.addTab(newTab);
+    // this.switchTab(newTab.id);
+  }
+
+  private closeTab(tabId: string): void {
+    if (this.tabs.length <= 1) {
+      notificationManager.warning('Cannot close the last tab');
+      return;
+    }
+
+    const tab = this.tabs.find(t => t.id === tabId);
+    if (tab) {
+      // Cleanup terminal if needed
+      // tab.terminal.dispose();
+    }
+
+    this.tabs = this.tabs.filter(t => t.id !== tabId);
+    tabBar.removeTab(tabId);
+
+    if (this.activeTabId === tabId) {
+      if (this.tabs.length > 0) {
+        this.switchTab(this.tabs[0].id);
+      }
+    }
+
+    notificationManager.info('Tab closed');
+  }
+
+  private switchTab(tabId: string): void {
+    const tab = this.tabs.find(t => t.id === tabId);
+    if (!tab) return;
+
+    this.activeTabId = tabId;
+    this.tabs.forEach(t => {
+      t.isActive = t.id === tabId;
+    });
+
+    // Switch terminal display
+    // TODO: Hide/show terminal instances
+    // For now, we only have one terminal instance
+    
+    tabBar.switchTab(tabId);
+    notificationManager.info(`Switched to ${tab.title}`);
+  }
+
+  private renameTab(tabId: string, newTitle: string): void {
+    const tab = this.tabs.find(t => t.id === tabId);
+    if (tab) {
+      tab.title = newTitle;
+      tabBar.renameTab(tabId, newTitle);
+    }
+  }
+
+  private switchToNextTab(): void {
+    if (this.tabs.length <= 1) return;
+    const currentIndex = this.tabs.findIndex(t => t.id === this.activeTabId);
+    const nextIndex = (currentIndex + 1) % this.tabs.length;
+    this.switchTab(this.tabs[nextIndex].id);
+  }
+
+  private switchToPreviousTab(): void {
+    if (this.tabs.length <= 1) return;
+    const currentIndex = this.tabs.findIndex(t => t.id === this.activeTabId);
+    const prevIndex = (currentIndex - 1 + this.tabs.length) % this.tabs.length;
+    this.switchTab(this.tabs[prevIndex].id);
   }
 
   private async checkLinuxFilesAccess(): Promise<string | null> {
@@ -1602,6 +2150,56 @@ echo $! > /tmp/clay-bridge.pid
   }
 
 
+  private isRootCommand(command: string): boolean {
+    const trimmed = command.trim();
+    // Commands that require root
+    const rootCommands = [
+      'sudo', 'su', 'pkexec', 'doas',
+      'mount', 'umount', 'fdisk', 'parted',
+      'modprobe', 'insmod', 'rmmod',
+      'setenforce', 'chroot',
+      'systemctl', 'service',
+      'iptables', 'ip', 'tc',
+      'chmod', 'chown', // when operating on system files
+    ];
+    
+    // Check if command starts with root command
+    for (const rootCmd of rootCommands) {
+      if (trimmed.startsWith(rootCmd + ' ') || trimmed === rootCmd) {
+        return true;
+      }
+    }
+    
+    // Check for system file operations
+    const systemPaths = ['/proc/', '/sys/', '/dev/', '/etc/', '/usr/', '/sbin/', '/bin/'];
+    for (const path of systemPaths) {
+      if (trimmed.includes(path)) {
+        return true;
+      }
+    }
+    
+    return false;
+  }
+
+  private isPrivilegedCommand(command: string): boolean {
+    const trimmed = command.trim();
+    // Commands that require full privileges (bypass restrictions)
+    const privilegedCommands = [
+      'sysctl', 'echo > /proc/', 'echo > /sys/',
+      'modprobe', 'insmod', 'rmmod',
+      'iptables', 'ip route', 'ip netns',
+      'setcap', 'capsh',
+    ];
+    
+    for (const privCmd of privilegedCommands) {
+      if (trimmed.includes(privCmd)) {
+        return true;
+      }
+    }
+    
+    return false;
+  }
+
   private async executeCommand(command: string): Promise<void> {
     // Handle built-in commands
     if (command === 'clear' || command === 'cls') {
@@ -1620,13 +2218,17 @@ echo $! > /tmp/clay-bridge.pid
       this.terminal.write(`  \x1b[32mhelp\x1b[0m               - Show this help message\r\n`);
       this.terminal.write(`  \x1b[32m@ai <question>\x1b[0m    - Ask AI assistant (always available)\r\n`);
       this.terminal.write(`  \x1b[32msearch <query>\x1b[0m     - Web search (uses SearXNG or LangSearch)\r\n`);
-      this.terminal.write(`  \x1b[32m@search <query>\x1b[0m   - Web search (alternative syntax)\r\n\r\n`);
+      this.terminal.write(`  \x1b[32m@search <query>\x1b[0m   - Web search (alternative syntax)\r\n`);
+      this.terminal.write(`  \x1b[32msettings\x1b[0m          - Open ChromeOS hidden settings unlocker\r\n`);
+      this.terminal.write(`  \x1b[32mscan\x1b[0m              - Scan filesystem for AI context\r\n\r\n`);
       
       // Show device-specific commands
       if (this.useBridge) {
         this.terminal.write(`\x1b[33mSystem Commands (Full Access):\x1b[0m\r\n`);
         this.terminal.write(`  All standard Unix/Linux commands available\r\n`);
-        this.terminal.write(`  Full bash shell with real system access\r\n\r\n`);
+        this.terminal.write(`  Full bash shell with real system access\r\n`);
+        this.terminal.write(`  \x1b[32m✓ Root access enabled\x1b[0m - System-level operations supported\r\n`);
+        this.terminal.write(`  \x1b[32m✓ Privileged APIs\x1b[0m - Kernel and device access available\r\n\r\n`);
       } else {
         this.terminal.write(`\x1b[33mBrowser Commands:\x1b[0m\r\n`);
         this.terminal.write(`  \x1b[32mls\x1b[0m      - List files and directories\r\n`);
@@ -1673,13 +2275,26 @@ echo $! > /tmp/clay-bridge.pid
       return;
     }
 
+    if (command === 'settings' || command === 'chromeos-settings') {
+      settingsUnlockerUI.open();
+      this.writePrompt();
+      return;
+    }
+
+    if (command === 'scan' || command === 'scan-filesystem') {
+      await this.scanFilesystem();
+      this.writePrompt();
+      return;
+    }
+
     if (command.startsWith('@ai ')) {
       const question = command.substring(4).trim();
       
       // Ensure AI assistant is always available
       if (!this.aiAssistant) {
         try {
-          this.aiAssistant = new SimpleAIAssistant();
+          this.aiAssistant = getWebLLMService();
+          await this.aiAssistant.initialize();
         } catch (error) {
           this.terminal.write(`\r\n\x1b[31m[ERROR]\x1b[0m Failed to initialize AI assistant: ${error}\r\n`);
           this.writePrompt();
@@ -1702,7 +2317,13 @@ echo $! > /tmp/clay-bridge.pid
         return;
       } else if (question === 'status') {
         this.terminal.write(`\r\n\x1b[36m[AI Status]\x1b[0m Control: ${this.aiControlEnabled ? 'ENABLED' : 'DISABLED'}\r\n`);
-        this.terminal.write(`\x1b[36m[AI Status]\x1b[0m Model: ${this.aiAssistant.getCurrentModel()}\r\n`);
+        if (this.aiAssistant) {
+          const modelInfo = this.aiAssistant.getModelInfo();
+          this.terminal.write(`\x1b[36m[AI Status]\x1b[0m Model: JOSIEFIED-Qwen3-0.6B (${modelInfo.quantization || 'q4f16_1'})\r\n`);
+          this.terminal.write(`\x1b[36m[AI Status]\x1b[0m Ready: ${this.aiAssistant.isReady() ? 'YES' : 'NO'}\r\n`);
+        } else {
+          this.terminal.write(`\x1b[36m[AI Status]\x1b[0m Model: Not initialized\r\n`);
+        }
         this.terminal.write(`\x1b[36m[Session]\x1b[0m Commands: ${this.sessionCommands.length}\r\n`);
         this.writePrompt();
         return;
@@ -1729,10 +2350,33 @@ echo $! > /tmp/clay-bridge.pid
       this.sessionCommands.push(command);
     }
 
+    // Detect if command needs root or privileged access
+    const needsRoot = this.isRootCommand(command);
+    const needsPrivileged = this.isPrivilegedCommand(command);
+    
     // Execute command
     if (this.isConnected && this.backend && this.backend.getConnected()) {
-      // Backend - commands are sent in real-time via WebSocket
-      // This works for both bridge (real system) and WebWorker (limited)
+      // For root/privileged commands when using bridge, use REST API
+      if (this.useBridge && (needsRoot || needsPrivileged) && this.backend && 'executeRootCommand' in this.backend) {
+        try {
+          const result = needsPrivileged
+            ? await this.backend.executePrivilegedCommand(command, this.currentDirectory)
+            : await this.backend.executeRootCommand(command, this.currentDirectory);
+          
+          this.terminal.write(result.output);
+          if (result.exitCode !== 0) {
+            this.lastError = { command, output: result.output, timestamp: Date.now() };
+          }
+          this.writePrompt();
+          return;
+        } catch (error: any) {
+          this.terminal.write(`\r\n\x1b[31m[ERROR]\x1b[0m ${error.message}\r\n`);
+          this.writePrompt();
+          return;
+        }
+      }
+      
+      // Regular commands - send in real-time via WebSocket
       this.backend.sendInput(command + '\r\n');
       
       // For bridge, commands are executed in real-time via PTY
@@ -1880,12 +2524,26 @@ echo $! > /tmp/clay-bridge.pid
   }
 
   private async handleAICommand(question: string): Promise<void> {
-    // Ensure AI assistant is always available
+    // Ensure AI assistant is initialized
     if (!this.aiAssistant) {
       try {
-        this.aiAssistant = new SimpleAIAssistant();
+        this.aiAssistant = getWebLLMService();
+        await this.aiAssistant.initialize();
       } catch (error) {
-        this.terminal.write(`\r\n\x1b[31m[ERROR]\x1b[0m AI assistant initialization failed. Please refresh the page.\r\n`);
+        this.terminal.write(`\r\n\x1b[31m[ERROR]\x1b[0m WebLLM initialization failed: ${error instanceof Error ? error.message : 'Unknown error'}\r\n`);
+        this.terminal.write(`\x1b[33m[INFO]\x1b[0m The JOSIEFIED model is loading. This may take a few moments on first use.\r\n`);
+        this.writePrompt();
+        return;
+      }
+    }
+
+    // Ensure model is ready
+    if (!this.aiAssistant.isReady()) {
+      this.terminal.write(`\r\n\x1b[36m[AI]\x1b[0m Initializing JOSIEFIED model (this may take a moment)...\r\n`);
+      try {
+        await this.aiAssistant.initialize();
+      } catch (error) {
+        this.terminal.write(`\r\n\x1b[31m[ERROR]\x1b[0m Failed to initialize model: ${error instanceof Error ? error.message : 'Unknown error'}\r\n`);
         this.writePrompt();
         return;
       }
@@ -1908,18 +2566,35 @@ echo $! > /tmp/clay-bridge.pid
         searchContext = await this.searchForAI(searchQuery);
       }
       
+      // Check if question is about files/filesystem
+      const needsFileContext = this.shouldIncludeFileContext(question);
+      let fileContext = '';
+      if (needsFileContext && this.filesystemContext) {
+        fileContext = this.formatFilesystemContext(this.filesystemContext);
+      }
+      
       if (isCommandRequest) {
         // Silent execution mode - just do it, don't explain
         this.terminal.write(`\r\n\x1b[36m[AI]\x1b[0m Executing...\r\n`);
-        const prompt = searchContext 
-          ? `User wants to: ${question}.\n\nContext from web search:\n${searchContext}\n\nProvide ONLY the command(s) to execute, no explanations. Format in code blocks.`
+        let contextParts = [];
+        if (fileContext) contextParts.push(`Filesystem context:\n${fileContext}`);
+        if (searchContext) contextParts.push(`Context from web search:\n${searchContext}`);
+        
+        const prompt = contextParts.length > 0
+          ? `User wants to: ${question}.\n\n${contextParts.join('\n\n')}\n\nProvide ONLY the command(s) to execute, no explanations. Format in code blocks.`
           : `User wants to: ${question}. Provide ONLY the command(s) to execute, no explanations. Format in code blocks.`;
         
-        const response = await this.aiAssistant.askQuestion(
-          prompt,
-          this.currentDirectory,
-          this.commandHistory
-        );
+        // Build conversation history for WebLLM
+        const messages = [
+          { role: 'user' as const, content: prompt }
+        ];
+        
+        let response = '';
+        await this.aiAssistant.chat(messages, (text) => {
+          // Stream response to terminal
+          response = text;
+          // Update in real-time if needed
+        });
         
         // Extract and execute commands silently
         const commands = this.extractCommands(response);
@@ -1939,11 +2614,24 @@ echo $! > /tmp/clay-bridge.pid
       } else {
         // Question mode - respond with explanation
         this.terminal.write(`\r\n\x1b[36m[AI]\x1b[0m Thinking...\r\n`);
-        const prompt = searchContext 
-          ? `${question}\n\nUse this context from web search to provide accurate information:\n${searchContext}\n\nIf the search results are relevant, reference them in your answer.`
+        let contextParts = [];
+        if (fileContext) contextParts.push(`Filesystem context:\n${fileContext}`);
+        if (searchContext) contextParts.push(`Context from web search:\n${searchContext}`);
+        
+        const prompt = contextParts.length > 0
+          ? `${question}\n\nUse this context to provide accurate information:\n${contextParts.join('\n\n')}\n\nIf the context is relevant, reference it in your answer.`
           : question;
         
-        const response = await this.aiAssistant.askQuestion(prompt, this.currentDirectory, this.commandHistory);
+        // Build conversation history for WebLLM
+        const messages = [
+          { role: 'user' as const, content: prompt }
+        ];
+        
+        let response = '';
+        await this.aiAssistant.chat(messages, (text) => {
+          // Stream response to terminal
+          response = text;
+        });
         
         // Parse and display markdown response
         this.displayMarkdownResponse(response);
@@ -1994,6 +2682,61 @@ echo $! > /tmp/clay-bridge.pid
     
     const lowerQuestion = question.toLowerCase();
     return searchKeywords.some(keyword => lowerQuestion.includes(keyword));
+  }
+
+  private shouldIncludeFileContext(question: string): boolean {
+    const fileKeywords = [
+      'file', 'files', 'directory', 'folder', 'path', 'home', 'root', 'filesystem',
+      'what files', 'list files', 'my files', 'in my', 'on my system', 'system files',
+      'directory structure', 'file tree', 'what is in', 'what\'s in', 'files in'
+    ];
+    
+    const lowerQuestion = question.toLowerCase();
+    return fileKeywords.some(keyword => lowerQuestion.includes(keyword));
+  }
+
+  private formatFilesystemContext(scanResult: any): string {
+    if (!scanResult || !scanResult.files) {
+      return 'No filesystem context available.';
+    }
+
+    const tree = this.buildFileTreeString(scanResult.files, '', 0, 50); // Limit to 50 entries
+    return `Filesystem Structure (${scanResult.totalFiles} files, ${scanResult.totalDirectories} directories, ${this.formatBytes(scanResult.totalSize)} total):
+${tree}
+
+Note: This is a summary of the user's filesystem. Use this information to answer questions about their files, directories, and system structure.`;
+  }
+
+  private buildFileTreeString(files: any[], prefix: string, depth: number, maxDepth: number): string {
+    if (depth > maxDepth) return '';
+    
+    let result = '';
+    for (let i = 0; i < Math.min(files.length, 20); i++) { // Limit to 20 items per level
+      const file = files[i];
+      const isLast = i === Math.min(files.length, 20) - 1;
+      const connector = isLast ? '└── ' : '├── ';
+      
+      result += `${prefix}${connector}${file.name} (${file.type}, ${this.formatBytes(file.size)})\n`;
+      
+      if (file.children && file.children.length > 0 && depth < maxDepth) {
+        const nextPrefix = prefix + (isLast ? '    ' : '│   ');
+        result += this.buildFileTreeString(file.children, nextPrefix, depth + 1, maxDepth);
+      }
+    }
+    
+    if (files.length > 20) {
+      result += `${prefix}... (${files.length - 20} more items)\n`;
+    }
+    
+    return result;
+  }
+
+  private formatBytes(bytes: number): string {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
   }
   
   private extractSearchQuery(question: string): string {
@@ -2182,7 +2925,10 @@ echo $! > /tmp/clay-bridge.pid
     this.terminal.write(`\x1b[1m\x1b[36m║\x1b[0m  \x1b[1m\x1b[34mClay Terminal\x1b[0m - Professional Web Terminal              \x1b[1m\x1b[36m║\x1b[0m\r\n`);
     this.terminal.write(`\x1b[1m\x1b[36m╚═══════════════════════════════════════════════════════╝\x1b[0m\r\n`);
     this.terminal.write('\r\n');
-    this.terminal.write(`  \x1b[32m✓\x1b[0m \x1b[36mAI Assistant\x1b[0m always available - Type \x1b[33m@ai <question>\x1b[0m\r\n`);
+    this.terminal.write(`  \x1b[32m✓\x1b[0m \x1b[36mAI Assistant (JOSIEFIED)\x1b[0m - Type \x1b[33m@ai <question>\x1b[0m\r\n`);
+    this.terminal.write(`  \x1b[32m✓\x1b[0m \x1b[36mLocal AI Inference\x1b[0m - Runs entirely in browser using WebLLM\r\n`);
+    this.terminal.write(`  \x1b[32m✓\x1b[0m \x1b[36mRoot Access\x1b[0m - System-level commands with privilege escalation\r\n`);
+    this.terminal.write(`  \x1b[32m✓\x1b[0m \x1b[36mPrivileged APIs\x1b[0m - Kernel parameters, device files, system control\r\n`);
     this.terminal.write(`  \x1b[32m✓\x1b[0m \x1b[36mWeb Search\x1b[0m - Type \x1b[33msearch <query>\x1b[0m or \x1b[33m@search <query>\x1b[0m\r\n`);
     this.terminal.write(`  \x1b[32m✓\x1b[0m \x1b[36mTab Completion\x1b[0m - Press Tab for command/file completion\r\n`);
     this.terminal.write(`  \x1b[32m✓\x1b[0m \x1b[36mHistory Search\x1b[0m - Press \x1b[33mCtrl+R\x1b[0m to search command history\r\n`);
@@ -2200,158 +2946,8 @@ echo $! > /tmp/clay-bridge.pid
   }
 }
 
-// AI Assistant
-class SimpleAIAssistant {
-  private conversationHistory: Array<{ role: string; content: string }> = [];
-  private readonly API_BASE_URL = 'https://api.llm7.io/v1';
-  private readonly API_KEY = 'unused'; // llm7.io doesn't require API key for public models
-  private currentModel: string = 'codestral-2501';
-  
-  private readonly AVAILABLE_MODELS = [
-    { id: 'codestral-2501', name: 'Codestral 2501', description: 'Best for Code' },
-    { id: 'mistral-small-3.1-24b-instruct-2503', name: 'Mistral Small 3.1', description: 'Fast & Capable' },
-    { id: 'deepseek-v3.1', name: 'DeepSeek V3.1', description: 'Advanced Reasoning' },
-    { id: 'gpt-5-mini', name: 'GPT-5 Mini', description: 'Fast & Efficient' },
-    { id: 'gpt-4.1-nano-2025-04-14', name: 'GPT-4.1 Nano', description: 'Lightweight' },
-    { id: 'gpt-5-chat', name: 'GPT-5 Chat', description: 'Conversational' },
-    { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash', description: 'Google AI' },
-    { id: 'codestral-2405', name: 'Codestral 2405', description: 'Code Specialist' },
-  ];
-
-  constructor() {
-    this.conversationHistory.push({
-      role: 'system',
-      content: 'You are a helpful AI assistant specialized in coding, bash commands, and terminal operations. When providing commands, always format them in code blocks. Be concise but thorough.'
-    });
-  }
-
-  public getAvailableModels() {
-    return this.AVAILABLE_MODELS;
-  }
-
-  public getCurrentModel(): string {
-    return this.currentModel;
-  }
-
-  public setModel(modelId: string): void {
-    if (this.AVAILABLE_MODELS.find(m => m.id === modelId)) {
-      this.currentModel = modelId;
-    }
-  }
-
-  public async askQuestion(question: string, cwd?: string, history?: string[]): Promise<string> {
-    // Build context-aware prompt
-    let contextPrompt = question;
-    if (cwd || history) {
-      contextPrompt = `Current directory: ${cwd || '/home/user'}\n`;
-      if (history && history.length > 0) {
-        contextPrompt += `Recent commands: ${history.slice(-5).join(', ')}\n`;
-      }
-      contextPrompt += `\nUser question: ${question}`;
-    }
-    
-    this.conversationHistory.push({ role: 'user', content: contextPrompt });
-
-    try {
-      const messages = [
-        ...this.conversationHistory.filter(msg => msg.role === 'system'),
-        ...this.conversationHistory.filter(msg => msg.role !== 'system').slice(-10),
-      ];
-
-      // llm7.io API call - no auth required for public models
-      const response = await fetch(`${this.API_BASE_URL}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          // Note: llm7.io may not require Authorization header for free tier
-          ...(this.API_KEY !== 'unused' ? { 'Authorization': `Bearer ${this.API_KEY}` } : {})
-        },
-        body: JSON.stringify({
-          model: this.currentModel,
-          messages: messages,
-          temperature: 0.7,
-          max_tokens: 2000,
-          stream: false
-        })
-      });
-
-      if (!response.ok) {
-        let errorText = 'Unknown error';
-        try {
-          const errorData = await response.json();
-          errorText = errorData.error?.message || errorData.message || JSON.stringify(errorData);
-        } catch {
-          errorText = await response.text().catch(() => `HTTP ${response.status}`);
-        }
-        throw new Error(`API Error: ${response.status} - ${errorText}`);
-      }
-
-      const data = await response.json();
-      
-      if (!data.choices || !data.choices[0] || !data.choices[0].message) {
-        throw new Error('Invalid response format from AI API');
-      }
-      
-      const assistantResponse = data.choices[0].message.content || 'No response generated';
-      
-      if (!assistantResponse || assistantResponse.trim().length === 0) {
-        throw new Error('Empty response from AI');
-      }
-      
-      this.conversationHistory.push({ role: 'assistant', content: assistantResponse });
-      
-      if (this.conversationHistory.length > 30) {
-        this.conversationHistory = [
-          this.conversationHistory[0],
-          ...this.conversationHistory.slice(-20)
-        ];
-      }
-      
-      return assistantResponse;
-    } catch (error: any) {
-      // Better error handling
-      const errorMessage = error.message || 'Unknown error occurred';
-      console.error('AI API Error:', error);
-      
-      // Reset conversation history on persistent errors
-      if (errorMessage.includes('401') || errorMessage.includes('403')) {
-        this.conversationHistory = [this.conversationHistory[0]]; // Keep system message
-      }
-      
-      throw new Error(`Failed to get AI response: ${errorMessage}`);
-    }
-  }
-
-  public async quickFix(command: string, error: string): Promise<string | null> {
-    try {
-      const prompt = `The command "${command}" failed with this error:\n${error}\n\nProvide ONLY the exact command to fix this issue. Format it in a code block like \`\`\`bash\nfix-command\n\`\`\`. Do not include explanations, just the fix command.`;
-      const response = await this.askQuestion(prompt);
-      const commands = this.extractCommand(response);
-      return commands.length > 0 ? commands[0] : null;
-    } catch (error: any) {
-      console.error('Quick fix error:', error);
-      // Return a simple fallback or null
-      return null;
-    }
-  }
-
-  private extractCommand(text: string): string[] {
-    const commands: string[] = [];
-    const codeBlockRegex = /```(?:bash|sh|zsh|cmd|powershell)?\n([\s\S]*?)```/g;
-    let match;
-    while ((match = codeBlockRegex.exec(text)) !== null) {
-      const code = match[1].trim();
-      const lines = code.split('\n');
-      lines.forEach(line => {
-        const cmd = line.trim();
-        if (cmd && !cmd.startsWith('#') && !cmd.startsWith('$') && cmd.length < 200) {
-          commands.push(cmd);
-        }
-      });
-    }
-    return commands;
-  }
-}
+// SimpleAIAssistant has been replaced with WebLLM service
+// The WebLLM service is imported from './backend-webllm'
 
 // UI Builder - Creates all UI elements dynamically
 class UIBuilder {
@@ -3023,6 +3619,14 @@ function renderTerminalView(): void {
               <span id="ai-text" class="text-xs text-gray-300 font-medium">AI</span>
             </div>
             
+            <!-- Scan Filesystem Button -->
+            <button id="scan-filesystem-btn" class="px-3 py-1.5 bg-blue-600/50 hover:bg-blue-600/70 text-blue-200 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-1.5 hover:scale-105 border border-blue-500/50">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+              </svg>
+              <span id="scan-filesystem-text">Scan Files</span>
+            </button>
+            
             <div id="os-info" class="px-2.5 py-1 rounded-lg bg-gray-800/50 border border-gray-700/50">
               <span id="os-text" class="text-xs text-gray-300 font-medium">OS: Unknown</span>
             </div>
@@ -3040,16 +3644,12 @@ function renderTerminalView(): void {
         
         <!-- Right Side Actions -->
         <div class="flex items-center gap-2">
-          <!-- Model Selector -->
+          <!-- Model Selector (JOSIEFIED Quantization) -->
           <select id="model-select" class="px-3 py-1.5 bg-gray-800/50 hover:bg-gray-700/50 text-gray-200 rounded-lg text-xs font-medium border border-gray-700/50 cursor-pointer transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/50">
-            <option value="codestral-2501">Codestral 2501</option>
-            <option value="mistral-small-3.1-24b-instruct-2503">Mistral Small</option>
-            <option value="deepseek-v3.1">DeepSeek V3.1</option>
-            <option value="gpt-5-mini">GPT-5 Mini</option>
-            <option value="gpt-4.1-nano-2025-04-14">GPT-4.1 Nano</option>
-            <option value="gpt-5-chat">GPT-5 Chat</option>
-            <option value="gemini-2.5-flash-lite">Gemini 2.5</option>
-            <option value="codestral-2405">Codestral 2405</option>
+            <option value="q4f16_1">JOSIEFIED Q4 (Fast)</option>
+            <option value="q4f32_1">JOSIEFIED Q4 F32</option>
+            <option value="q8f16_1">JOSIEFIED Q8 (Better)</option>
+            <option value="f16">JOSIEFIED F16 (Best)</option>
           </select>
           
           <!-- Theme Toggle -->

@@ -46,44 +46,19 @@ body::before {
 
 /* Enhanced Terminal styling - Modern Dribbble-inspired design */
 #terminal {
-  background: linear-gradient(
-    135deg,
-    rgba(3, 7, 18, 0.98) 0%,
-    rgba(17, 24, 39, 0.95) 50%,
-    rgba(3, 7, 18, 0.98) 100%
-  );
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
+  background: rgb(3, 7, 18);
   padding: 2rem;
   border-radius: 1.5rem;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   box-shadow: 
-    0 25px 80px rgba(0, 0, 0, 0.6), 
-    0 0 0 1px rgba(255, 255, 255, 0.05),
-    inset 0 1px 0 rgba(255, 255, 255, 0.12),
-    0 0 60px rgba(37, 99, 235, 0.15),
-    0 0 120px rgba(234, 88, 12, 0.1);
+    0 20px 60px rgba(0, 0, 0, 0.5), 
+    0 0 0 1px rgba(255, 255, 255, 0.05);
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
   overflow: hidden;
 }
 
-#terminal::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(255, 255, 255, 0.03),
-    transparent
-  );
-  animation: shimmer 3s infinite;
-  pointer-events: none;
-}
+/* Removed shimmer effect for matte design */
 
 @keyframes shimmer {
   0% {
@@ -94,24 +69,7 @@ body::before {
   }
 }
 
-#terminal::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  padding: 1px;
-  background: linear-gradient(135deg, rgba(37, 99, 235, 0.25), rgba(234, 88, 12, 0.2));
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  opacity: 0;
-  transition: opacity 0.3s;
-  pointer-events: none;
-}
-
-#terminal:hover::before {
-  opacity: 1;
-}
+/* Removed gradient border effect for matte design */
 
 .xterm {
   padding: 1rem;
@@ -127,85 +85,32 @@ body::before {
   background: transparent !important;
 }
 
-/* Glassmorphism effects - Modern vibrant design with dark blue/orange theme */
+/* Matte effects - Solid, non-transparent design */
 .glass {
-  background: linear-gradient(
-    135deg,
-    rgba(15, 23, 42, 0.92) 0%,
-    rgba(30, 41, 59, 0.88) 50%,
-    rgba(15, 23, 42, 0.92) 100%
-  );
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgb(17, 24, 39);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   box-shadow: 
-    0 8px 32px rgba(0, 0, 0, 0.5),
-    0 0 0 1px rgba(255, 255, 255, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.15),
-    0 0 40px rgba(37, 99, 235, 0.1),
-    inset 0 -1px 0 rgba(234, 88, 12, 0.05);
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    0 4px 16px rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(255, 255, 255, 0.05);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
-  overflow: hidden;
 }
-
-.glass::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  padding: 1px;
-  background: linear-gradient(
-    135deg,
-    rgba(37, 99, 235, 0.4),
-    rgba(30, 58, 138, 0.35),
-    rgba(234, 88, 12, 0.3)
-  );
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  opacity: 0;
-  transition: opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-  pointer-events: none;
-}
-
-/* Removed excessive shimmer effect */
 
 .glass:hover {
-  background: linear-gradient(
-    135deg,
-    rgba(15, 23, 42, 0.95) 0%,
-    rgba(30, 41, 59, 0.92) 50%,
-    rgba(15, 23, 42, 0.95) 100%
-  );
+  background: rgb(30, 41, 59);
   border-color: rgba(255, 255, 255, 0.15);
   box-shadow: 
-    0 8px 32px rgba(0, 0, 0, 0.5),
-    0 0 0 1px rgba(255, 255, 255, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.15),
-    0 0 40px rgba(37, 99, 235, 0.12);
-  transform: translateY(-1px);
+    0 6px 20px rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(255, 255, 255, 0.08);
 }
 
-.glass:hover::before {
-  opacity: 1;
-}
-
-/* Status bar enhancements - Modern design */
+/* Status bar enhancements - Matte design */
 #status-bar {
-  background: linear-gradient(
-    180deg,
-    rgba(17, 24, 39, 0.98) 0%,
-    rgba(30, 41, 59, 0.95) 100%
-  );
-  backdrop-filter: blur(24px) saturate(200%);
-  -webkit-backdrop-filter: blur(24px) saturate(200%);
+  background: rgb(17, 24, 39);
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   box-shadow: 
-    0 4px 24px rgba(0, 0, 0, 0.4),
-    0 0 0 1px rgba(255, 255, 255, 0.05),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1),
-    0 0 40px rgba(37, 99, 235, 0.06);
+    0 2px 12px rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(255, 255, 255, 0.05);
   position: relative;
   z-index: 10;
 }
@@ -449,7 +354,7 @@ button:active, .control:active {
 
 /* Smooth transitions for all interactive elements */
 * {
-  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter;
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   transition-duration: 150ms;
 }
@@ -489,18 +394,12 @@ select:focus-visible {
   border-radius: 4px;
 }
 
-/* Sidebar Navigation Styles */
+/* Sidebar Navigation Styles - Matte */
 .sidebar {
-  background: linear-gradient(
-    180deg,
-    rgba(15, 23, 42, 0.95) 0%,
-    rgba(30, 41, 59, 0.9) 100%
-  );
-  backdrop-filter: blur(24px) saturate(200%);
-  -webkit-backdrop-filter: blur(24px) saturate(200%);
+  background: rgb(17, 24, 39);
   border-right: 1px solid rgba(255, 255, 255, 0.1);
   box-shadow: 
-    4px 0 24px rgba(0, 0, 0, 0.3),
+    4px 0 16px rgba(0, 0, 0, 0.3),
     0 0 0 1px rgba(255, 255, 255, 0.05);
 }
 

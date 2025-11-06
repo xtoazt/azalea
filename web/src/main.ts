@@ -352,54 +352,8 @@ class ClayWebTerminal {
       }, 1000); // Check every second, but only update if enough time has passed
     }
     
-    // Setup model selector (quantization options for JOSIEFIED)
-    const modelSelect = document.getElementById('model-select') as HTMLSelectElement;
-    if (modelSelect) {
-      // Don't overwrite if already set up
-      if (!modelSelect.hasAttribute('data-initialized')) {
-        modelSelect.setAttribute('data-initialized', 'true');
-        if (!modelSelect.value) {
-          modelSelect.value = 'q4f16_1';
-        }
-        modelSelect.addEventListener('change', async () => {
-        if (this.aiAssistant) {
-            const quantization = modelSelect.value as 'q4f16_1' | 'q4f32_1' | 'q8f16_1' | 'f16';
-            this.aiAssistant.updateConfig({ quantization });
-            this.terminal.write(`\r\n\x1b[32m[AI]\x1b[0m Quantization changed to: ${quantization}\r\n`);
-            this.terminal.write(`\x1b[33m[INFO]\x1b[0m Model will reload with new quantization on next use.\r\n`);
-          this.writePrompt();
-          } else {
-            notificationManager.info('AI Assistant not initialized yet');
-          }
-        });
-      }
-    }
-
-    // Setup theme toggle in status bar
-    const themeToggle = document.getElementById('theme-toggle-terminal');
-    if (themeToggle && !themeToggle.hasAttribute('data-initialized')) {
-      themeToggle.setAttribute('data-initialized', 'true');
-      themeToggle.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        toggleDarkMode();
-        // Update icons after toggle
-        setTimeout(() => {
-          const sunIcon = document.getElementById('sun-icon-terminal');
-          const moonIcon = document.getElementById('moon-icon-terminal');
-          if (sunIcon && moonIcon) {
-            const isDark = document.documentElement.classList.contains('dark');
-            if (isDark) {
-              sunIcon.classList.add('hidden');
-              moonIcon.classList.remove('hidden');
-            } else {
-              sunIcon.classList.remove('hidden');
-              moonIcon.classList.add('hidden');
-            }
-          }
-        }, 10);
-      });
-    }
+    // Model selector and theme toggle are now in sidebar
+    // They are set up in renderTerminalView()
   }
   
   private updateOSInfo(): void {
@@ -4112,9 +4066,9 @@ function renderTerminalView(): void {
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-3.318 4.325-3.318 2.4 0 4.899 1.562 4.325 3.318m-1.455 4.315c-.426 1.756-1.924 2.318-4.325 2.318-2.4 0-3.899-.562-4.325-2.318m-1.455 4.315c.426 1.756 2.924 3.318 4.325 3.318 2.4 0 4.899-1.562 4.325-3.318m-1.455-4.315c-.426-1.756-1.924-2.318-4.325-2.318-2.4 0-3.899.562-4.325 2.318"/>
           </svg>
         </button>
-        <button id="sidebar-files" class="sidebar-item w-full p-3 rounded-lg flex items-center justify-center group relative" title="Files" aria-label="Scan Filesystem" type="button">
+        <button id="sidebar-files" class="sidebar-item w-full p-3 rounded-lg flex items-center justify-center group relative" title="Scan Files" aria-label="Scan Filesystem" type="button">
           <svg class="w-6 h-6 text-gray-400 group-hover:text-blue-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
           </svg>
         </button>
         <button id="sidebar-history" class="sidebar-item w-full p-3 rounded-lg flex items-center justify-center group relative" title="History" aria-label="Command History" type="button">
@@ -4128,6 +4082,25 @@ function renderTerminalView(): void {
           </svg>
         </button>
         <div class="h-px bg-white/10 my-2" role="separator" aria-hidden="true"></div>
+        <button id="sidebar-model" class="sidebar-item w-full p-3 rounded-lg flex flex-col items-center justify-center group relative" title="AI Model" aria-label="Select AI Model" type="button">
+          <svg class="w-5 h-5 text-gray-400 group-hover:text-blue-400 transition-colors mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+          </svg>
+          <select id="model-select-sidebar" class="w-full text-xs bg-transparent text-gray-400 border-none outline-none cursor-pointer" aria-label="Select AI model quantization">
+            <option value="q4f16_1">Q4</option>
+            <option value="q4f32_1">Q4F32</option>
+            <option value="q8f16_1">Q8</option>
+            <option value="f16">F16</option>
+          </select>
+        </button>
+        <button id="sidebar-theme" class="sidebar-item w-full p-3 rounded-lg flex items-center justify-center group relative" title="Theme" aria-label="Toggle Theme" type="button">
+          <svg id="sun-icon-sidebar" class="w-6 h-6 text-gray-400 group-hover:text-blue-400 transition-colors dark:hidden" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+            <path fill-rule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clip-rule="evenodd"/>
+          </svg>
+          <svg id="moon-icon-sidebar" class="w-6 h-6 text-gray-400 group-hover:text-blue-400 transition-colors hidden dark:block" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+            <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/>
+          </svg>
+        </button>
         <button id="sidebar-share" class="sidebar-item w-full p-3 rounded-lg flex items-center justify-center group relative" title="Share Session" aria-label="Share Terminal Session" type="button">
           <svg class="w-6 h-6 text-gray-400 group-hover:text-blue-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/>
@@ -4138,99 +4111,106 @@ function renderTerminalView(): void {
 
     <!-- Main Content Area -->
     <div class="flex-1 flex flex-col">
-      <!-- Compact Status Bar -->
+      <!-- Compact Status Bar - Only Status Indicators -->
       <div id="status-bar" class="glass border-b border-white/10 px-6 py-3 relative z-20">
-        <div class="flex items-center justify-between gap-4">
-          <div class="flex items-center gap-3 flex-wrap">
-            <!-- Status Indicators -->
-            <div id="webvm-status" class="flex items-center gap-2 px-3 py-1.5 rounded-lg glass hover:bg-white/5 transition-all">
-              <div id="webvm-dot" class="w-2 h-2 rounded-full bg-gray-500"></div>
-              <span id="webvm-text" class="text-xs text-gray-300 font-medium">WebVM</span>
-            </div>
-            <div id="bridge-status" class="flex items-center gap-2 px-3 py-1.5 rounded-lg glass hover:bg-white/5 transition-all">
-              <div id="bridge-dot" class="w-2 h-2 rounded-full bg-gray-500"></div>
-              <span id="bridge-text" class="text-xs text-gray-300 font-medium">Bridge</span>
-            </div>
-            <div id="websocket-status" class="flex items-center gap-2 px-3 py-1.5 rounded-lg glass hover:bg-white/5 transition-all">
-              <div id="websocket-dot" class="w-2 h-2 rounded-full bg-gray-500"></div>
-              <span id="websocket-text" class="text-xs text-gray-300 font-medium">WS</span>
-            </div>
-            <div id="ai-status" class="flex items-center gap-2 px-3 py-1.5 rounded-lg glass hover:bg-white/5 transition-all">
-              <div id="ai-dot" class="w-2 h-2 rounded-full bg-gray-500"></div>
-              <span id="ai-text" class="text-xs text-gray-300 font-medium">AI</span>
-            </div>
-            <button id="scan-filesystem-btn" class="px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-1.5 hover:scale-105 glass hover:bg-white/5" style="background: rgba(37, 99, 235, 0.3); border: 1px solid rgba(37, 99, 235, 0.5); color: rgb(191, 219, 254);">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-              </svg>
-              <span id="scan-filesystem-text">Scan Files</span>
-            </button>
-            <div id="os-info" class="px-3 py-1.5 rounded-lg glass">
-              <span id="os-text" class="text-xs text-gray-300 font-medium">OS: Unknown</span>
-            </div>
-            <div id="cpu-usage" class="px-3 py-1.5 rounded-lg glass">
-              <span id="cpu-text" class="text-xs text-gray-300 font-medium">CPU: --</span>
-            </div>
-            </div>
-        <div class="flex items-center gap-2">
-            <select id="model-select" class="px-3 py-1.5 glass rounded-lg text-xs font-medium cursor-pointer transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/50" style="border: 1px solid rgba(255, 255, 255, 0.1);" aria-label="Select AI model quantization">
-              <option value="q4f16_1">JOSIEFIED Q4 (Fast)</option>
-              <option value="q4f32_1">JOSIEFIED Q4 F32</option>
-              <option value="q8f16_1">JOSIEFIED Q8 (Better)</option>
-              <option value="f16">JOSIEFIED F16 (Best)</option>
-          </select>
-            <button id="theme-toggle-terminal" class="p-2 rounded-lg glass hover:bg-white/5 transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/50" aria-label="Toggle theme" type="button" title="Toggle dark/light theme">
-            <svg id="sun-icon-terminal" class="w-4 h-4 text-gray-400 dark:hidden" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
-              <path fill-rule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clip-rule="evenodd"/>
-            </svg>
-            <svg id="moon-icon-terminal" class="w-4 h-4 text-gray-400 hidden dark:block" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
-              <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/>
-            </svg>
-          </button>
+        <div class="flex items-center gap-3 flex-wrap">
+          <!-- Status Indicators Only -->
+          <div id="webvm-status" class="flex items-center gap-2 px-3 py-1.5 rounded-lg glass hover:bg-white/5 transition-all">
+            <div id="webvm-dot" class="w-2 h-2 rounded-full bg-gray-500"></div>
+            <span id="webvm-text" class="text-xs text-gray-300 font-medium">WebVM</span>
+          </div>
+          <div id="bridge-status" class="flex items-center gap-2 px-3 py-1.5 rounded-lg glass hover:bg-white/5 transition-all">
+            <div id="bridge-dot" class="w-2 h-2 rounded-full bg-gray-500"></div>
+            <span id="bridge-text" class="text-xs text-gray-300 font-medium">Bridge</span>
+          </div>
+          <div id="websocket-status" class="flex items-center gap-2 px-3 py-1.5 rounded-lg glass hover:bg-white/5 transition-all">
+            <div id="websocket-dot" class="w-2 h-2 rounded-full bg-gray-500"></div>
+            <span id="websocket-text" class="text-xs text-gray-300 font-medium">WS</span>
+          </div>
+          <div id="ai-status" class="flex items-center gap-2 px-3 py-1.5 rounded-lg glass hover:bg-white/5 transition-all">
+            <div id="ai-dot" class="w-2 h-2 rounded-full bg-gray-500"></div>
+            <span id="ai-text" class="text-xs text-gray-300 font-medium">AI</span>
+          </div>
+          <div id="os-info" class="px-3 py-1.5 rounded-lg glass">
+            <span id="os-text" class="text-xs text-gray-300 font-medium">OS: Unknown</span>
+          </div>
+          <div id="cpu-usage" class="px-3 py-1.5 rounded-lg glass">
+            <span id="cpu-text" class="text-xs text-gray-300 font-medium">CPU: --</span>
+          </div>
         </div>
       </div>
     </div>
     
       <!-- Terminal Container -->
       <div class="flex-1 overflow-hidden p-6 relative">
-        <div class="absolute inset-0 bg-gradient-to-br from-blue-600/3 via-blue-500/3 to-orange-600/3 rounded-3xl blur-2xl"></div>
         <div id="terminal" class="w-full h-full glass rounded-2xl shadow-xl relative z-10"></div>
       </div>
     </div>
   `;
   root.appendChild(layout);
 
-  // Theme toggle handler is set up in initializeStatusBar() to avoid duplicates
-  // But we also set it up here as a fallback
-  const themeToggle = document.getElementById('theme-toggle-terminal');
-  if (themeToggle && !themeToggle.hasAttribute('data-initialized')) {
-    themeToggle.setAttribute('data-initialized', 'true');
-    themeToggle.addEventListener('click', () => {
+  // Setup sidebar theme toggle
+  const themeToggleSidebar = document.getElementById('sidebar-theme');
+  if (themeToggleSidebar && !themeToggleSidebar.hasAttribute('data-initialized')) {
+    themeToggleSidebar.setAttribute('data-initialized', 'true');
+    themeToggleSidebar.addEventListener('click', () => {
       toggleDarkMode();
       // Update icons after toggle
       setTimeout(() => {
-    const sunIcon = document.getElementById('sun-icon-terminal');
-    const moonIcon = document.getElementById('moon-icon-terminal');
-    if (sunIcon && moonIcon) {
+        const sunIcon = document.getElementById('sun-icon-sidebar');
+        const moonIcon = document.getElementById('moon-icon-sidebar');
+        if (sunIcon && moonIcon) {
           const isDark = document.documentElement.classList.contains('dark');
-      if (isDark) {
-        sunIcon.classList.add('hidden');
-        moonIcon.classList.remove('hidden');
-      } else {
-        sunIcon.classList.remove('hidden');
-        moonIcon.classList.add('hidden');
-      }
-    }
+          if (isDark) {
+            sunIcon.classList.add('hidden');
+            moonIcon.classList.remove('hidden');
+          } else {
+            sunIcon.classList.remove('hidden');
+            moonIcon.classList.add('hidden');
+          }
+        }
       }, 10);
+    });
+  }
+
+  // Setup sidebar model selector
+  const modelSelectSidebar = document.getElementById('model-select-sidebar') as HTMLSelectElement;
+  if (modelSelectSidebar && !modelSelectSidebar.hasAttribute('data-initialized')) {
+    modelSelectSidebar.setAttribute('data-initialized', 'true');
+    if (!modelSelectSidebar.value) {
+      modelSelectSidebar.value = 'q4f16_1';
+    }
+    modelSelectSidebar.addEventListener('change', async (e) => {
+      const terminal = (window as any).clayTerminal;
+      if (terminal && terminal.aiAssistant) {
+        const quantization = (e.target as HTMLSelectElement).value as 'q4f16_1' | 'q4f32_1' | 'q8f16_1' | 'f16';
+        terminal.aiAssistant.updateConfig({ quantization });
+        terminal.terminal.write(`\r\n\x1b[32m[AI]\x1b[0m Quantization changed to: ${quantization}\r\n`);
+        terminal.terminal.write(`\x1b[33m[INFO]\x1b[0m Model will reload with new quantization on next use.\r\n`);
+        if (terminal.writePrompt) {
+          terminal.writePrompt();
+        }
+        notificationManager.success(`AI Model changed to ${quantization}`);
+      } else {
+        notificationManager.warning('AI Assistant not initialized yet');
+      }
     });
   }
 
   const back = document.getElementById('back-home') as HTMLButtonElement;
   if (back) {
-  back.addEventListener('click', () => {
-    location.hash = '';
-    renderLanding();
-  });
+    back.addEventListener('click', () => {
+      location.hash = '';
+      renderLanding();
+    });
+  }
+
+  const sidebarTerminal = document.getElementById('sidebar-terminal');
+  if (sidebarTerminal) {
+    sidebarTerminal.addEventListener('click', () => {
+      // Terminal is already active, just show info
+      notificationManager.info('Terminal is active');
+    });
   }
 
   // Sidebar button handlers
@@ -4257,12 +4237,12 @@ function renderTerminalView(): void {
 
   const sidebarFiles = document.getElementById('sidebar-files');
   if (sidebarFiles) {
-    sidebarFiles.addEventListener('click', () => {
+    sidebarFiles.addEventListener('click', async () => {
       const terminal = (window as any).clayTerminal;
       if (terminal && terminal.scanFilesystem) {
-        terminal.scanFilesystem();
+        await terminal.scanFilesystem();
       } else {
-        notificationManager.info('Use the Scan Files button to scan your filesystem');
+        notificationManager.warning('Terminal not ready. Please wait for initialization.');
       }
     });
   }
@@ -4271,8 +4251,13 @@ function renderTerminalView(): void {
   if (sidebarHistory) {
     sidebarHistory.addEventListener('click', () => {
       const terminal = (window as any).clayTerminal;
-      if (terminal) {
+      if (terminal && terminal.terminal) {
         terminal.terminal.write('\r\n\x1b[36m[History]\x1b[0m Press Ctrl+R to search command history\r\n');
+        if (terminal.writePrompt) {
+          terminal.writePrompt();
+        }
+      } else {
+        notificationManager.info('Press Ctrl+R to search command history');
       }
     });
   }
@@ -4281,11 +4266,14 @@ function renderTerminalView(): void {
   if (sidebarAI) {
     sidebarAI.addEventListener('click', () => {
       const terminal = (window as any).clayTerminal;
-      if (terminal) {
+      if (terminal && terminal.terminal) {
         terminal.terminal.write('\r\n\x1b[36m[AI]\x1b[0m Type @ai followed by your question to chat with AI\r\n');
+        terminal.terminal.write('\x1b[33m[Example]\x1b[0m @ai How do I list files in a directory?\r\n');
         if (terminal.writePrompt) {
           terminal.writePrompt();
         }
+      } else {
+        notificationManager.info('Type @ai followed by your question to chat with AI');
       }
     });
   }

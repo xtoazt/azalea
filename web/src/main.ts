@@ -794,7 +794,7 @@ echo $! > /tmp/clay-bridge.pid
           <div class="mb-6">
             <p class="text-gray-300 mb-3 font-semibold">Quick Fix Options:</p>
             <div class="space-y-3 mb-4">
-              <button id="auto-fix-btn" class="w-full px-4 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white rounded-lg font-semibold transition-all transform hover:scale-105 border border-blue-400/50">
+              <button id="auto-fix-btn" class="w-full px-4 py-3 text-white rounded-lg font-semibold transition-all transform hover:scale-105" style="background: linear-gradient(to right, rgb(37, 99, 235), rgb(234, 88, 12)); border: 1px solid rgba(37, 99, 235, 0.5);">
                 🔧 Run Automatic Setup (Recommended)
               </button>
               <p class="text-xs text-gray-400 text-center">This will automatically install Node.js, npm, clone the repo, install dependencies, and start the bridge</p>
@@ -822,7 +822,7 @@ echo $! > /tmp/clay-bridge.pid
             <button id="bridge-error-close" class="px-4 py-2 bg-gray-700/50 hover:bg-gray-700 text-white rounded-lg font-medium transition-all">
               Close
             </button>
-            <button id="bridge-error-retry" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium transition-all">
+            <button id="bridge-error-retry" class="px-4 py-2 text-white rounded-lg font-medium transition-all" style="background: rgb(37, 99, 235);">
               Retry
             </button>
           </div>
@@ -1296,15 +1296,19 @@ echo $! > /tmp/clay-bridge.pid
 
     caseBtn?.addEventListener('click', () => {
       caseSensitive = !caseSensitive;
-      caseBtn.classList.toggle('bg-blue-600', caseSensitive);
-      caseBtn.classList.toggle('text-white', caseSensitive);
+      if (caseBtn) {
+        caseBtn.style.backgroundColor = caseSensitive ? 'rgb(37, 99, 235)' : '';
+        caseBtn.style.color = caseSensitive ? 'white' : '';
+      }
       performSearch();
     });
 
     regexBtn?.addEventListener('click', () => {
       regex = !regex;
-      regexBtn.classList.toggle('bg-blue-600', regex);
-      regexBtn.classList.toggle('text-white', regex);
+      if (regexBtn) {
+        regexBtn.style.backgroundColor = regex ? 'rgb(37, 99, 235)' : '';
+        regexBtn.style.color = regex ? 'white' : '';
+      }
       performSearch();
     });
 
@@ -3508,118 +3512,164 @@ function renderLanding(): void {
   const root = document.getElementById('app-root')!;
   root.innerHTML = '';
   const wrapper = document.createElement('div');
-  wrapper.className = 'min-h-screen flex flex-col';
+  wrapper.className = 'min-h-screen flex';
 
-  const navbar = document.createElement('nav');
-  navbar.className = 'glass border-b border-white/10 px-6 py-4 animate-fade-in';
-  navbar.innerHTML = `
-    <div class="flex items-center justify-between max-w-7xl mx-auto">
-      <div class="flex items-center gap-3">
-        <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-          <span class="text-white font-bold text-lg">C</span>
-        </div>
-        <h1 class="text-2xl font-bold text-white">Clay Terminal</h1>
-      </div>
-      <div class="flex items-center gap-3">
-        <button id="install-pwa-btn" class="px-4 py-2 bg-blue-600/80 hover:bg-blue-600 text-white rounded-lg text-sm font-medium transition-all hover:scale-105 border border-blue-500/50" style="display: none;">
-          Install App
-        </button>
-        <button id="theme-toggle" class="p-2 rounded-lg bg-gray-800/50 hover:bg-gray-700/50 transition-all border border-gray-700/50 hover:scale-105">
-          <svg id="sun-icon" class="w-5 h-5 text-gray-300 dark:hidden" fill="currentColor" viewBox="0 0 20 20">
-            <path fill-rule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clip-rule="evenodd"/>
-          </svg>
-          <svg id="moon-icon" class="w-5 h-5 text-gray-300 hidden dark:block" fill="currentColor" viewBox="0 0 20 20">
-            <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/>
-          </svg>
-        </button>
+  // Sidebar Navigation
+  const sidebar = document.createElement('aside');
+  sidebar.className = 'sidebar w-20 flex flex-col items-center py-6 animate-slide-in relative z-10';
+  sidebar.innerHTML = `
+    <div class="mb-8">
+      <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-600 to-orange-600 flex items-center justify-center shadow-lg animate-glow-pulse">
+        <span class="text-white font-bold text-xl">C</span>
       </div>
     </div>
+    <nav class="flex-1 flex flex-col gap-4 w-full px-2">
+      <button class="sidebar-item active w-full p-3 rounded-lg flex items-center justify-center group relative" title="Home">
+        <svg class="w-6 h-6 text-blue-400 group-hover:text-blue-300 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+        </svg>
+      </button>
+      <button class="sidebar-item w-full p-3 rounded-lg flex items-center justify-center group relative" title="Calendar">
+        <svg class="w-6 h-6 text-gray-400 group-hover:text-blue-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+        </svg>
+      </button>
+      <button class="sidebar-item w-full p-3 rounded-lg flex items-center justify-center group relative" title="Analytics">
+        <svg class="w-6 h-6 text-gray-400 group-hover:text-blue-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+        </svg>
+      </button>
+      <div class="h-px bg-white/10 my-2"></div>
+      <button class="sidebar-item w-full p-3 rounded-lg flex items-center justify-center group relative" title="Settings">
+        <svg class="w-6 h-6 text-gray-400 group-hover:text-blue-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-3.318 4.325-3.318 2.4 0 4.899 1.562 4.325 3.318m-1.455 4.315c-.426 1.756-1.924 2.318-4.325 2.318-2.4 0-3.899-.562-4.325-2.318m-1.455 4.315c.426 1.756 2.924 3.318 4.325 3.318 2.4 0 4.899-1.562 4.325-3.318m-1.455-4.315c-.426-1.756-1.924-2.318-4.325-2.318-2.4 0-3.899.562-4.325 2.318"/>
+        </svg>
+      </button>
+      <button class="sidebar-item w-full p-3 rounded-lg flex items-center justify-center group relative" title="User">
+        <svg class="w-6 h-6 text-gray-400 group-hover:text-blue-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+        </svg>
+      </button>
+    </nav>
   `;
 
-  const hero = document.createElement('div');
-  hero.className = 'flex-1 flex items-center justify-center px-6 py-20 relative overflow-hidden';
-  hero.innerHTML = `
-    <div class="absolute inset-0 bg-gradient-to-br from-blue-600/20 via-purple-600/20 to-pink-600/20 animate-pulse-slow"></div>
-    <div class="text-center max-w-4xl mx-auto relative z-10 animate-fade-in">
-      <div class="mb-6">
-        <div class="inline-block p-4 rounded-2xl glass mb-4">
-          <div class="w-16 h-16 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center mx-auto">
-            <span class="text-white font-bold text-3xl">C</span>
+  // Main Content Area
+  const mainContent = document.createElement('div');
+  mainContent.className = 'flex-1 flex flex-col';
+  mainContent.innerHTML = `
+    <!-- Top Header -->
+    <header class="glass border-b border-white/10 px-8 py-6 animate-fade-in">
+      <div class="flex items-center justify-between">
+        <div>
+          <h1 class="text-3xl font-bold text-white mb-1">Terminal Management</h1>
+          <p class="text-gray-400 text-sm">Track and improve your terminal status</p>
+        </div>
+        <div class="flex items-center gap-4">
+          <div class="flex items-center gap-2 px-4 py-2 glass rounded-lg">
+            <div class="w-8 h-8 rounded-full bg-gradient-to-br from-blue-600 to-orange-600 flex items-center justify-center text-white font-semibold text-sm">JB</div>
+            <span class="text-white text-sm font-medium">James Brown</span>
+            <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+            </svg>
+          </div>
+          <button class="p-2 glass rounded-lg hover:bg-white/5 transition-all">
+            <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+            </svg>
+          </button>
+          <button id="theme-toggle" class="p-2 glass rounded-lg hover:bg-white/5 transition-all">
+            <svg id="sun-icon" class="w-5 h-5 text-gray-400 dark:hidden" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clip-rule="evenodd"/>
+            </svg>
+            <svg id="moon-icon" class="w-5 h-5 text-gray-400 hidden dark:block" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Dashboard Content -->
+    <main class="flex-1 p-8 overflow-y-auto">
+      <div class="max-w-7xl mx-auto">
+        <!-- Hero Section -->
+        <div class="mb-8 animate-fade-up">
+          <h1 class="text-6xl md:text-7xl font-bold text-white mb-4 tracking-tight">
+            Professional Terminal
+            <span class="block bg-gradient-to-r from-blue-400 to-orange-400 bg-clip-text text-transparent">for the Web</span>
+          </h1>
+          <p class="text-xl text-gray-300 mb-8 max-w-3xl leading-relaxed">
+            Clay gives you a powerful, AI-augmented terminal experience right in your browser. Full system access, tab completion, history search, and more.
+          </p>
+          <div class="flex gap-4 flex-wrap">
+            <button id="open-terminal" class="px-8 py-4 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white rounded-xl font-semibold text-lg shadow-2xl hover:shadow-blue-500/50 transition-all transform hover:scale-105 border border-blue-500/50 animate-stagger-1">
+              Open Terminal
+            </button>
+            <a href="https://www.npmjs.com/package/clay-util" target="_blank" class="px-8 py-4 glass card-glow-blue hover:bg-white/5 text-white rounded-xl font-semibold text-lg transition-all transform hover:scale-105 animate-stagger-2">
+              Documentation
+            </a>
+            <button id="install-pwa-btn-hero" class="px-8 py-4 bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-500 hover:to-orange-600 text-white rounded-xl font-semibold text-lg shadow-2xl hover:shadow-orange-500/50 transition-all transform hover:scale-105 border border-orange-500/50 animate-stagger-3" style="display: none;">
+              📱 Install App
+            </button>
+          </div>
+        </div>
+
+        <!-- Dashboard Cards Grid -->
+        <div class="grid gap-6 md:grid-cols-2 lg:grid-cols-3 mb-8">
+          <!-- Clock Card -->
+          <div class="glass rounded-2xl p-6 card-glow-blue animate-stagger-1">
+            <h2 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+              Current Time
+            </h2>
+            <div id="clock" class="text-4xl font-bold text-white mb-2 bg-gradient-to-r from-blue-400 to-blue-300 bg-clip-text text-transparent"></div>
+            <div id="date" class="text-sm text-gray-400"></div>
+          </div>
+
+          <!-- Terminal Stats Card -->
+          <div class="glass rounded-2xl p-6 card-glow-orange animate-stagger-2">
+            <h2 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <svg class="w-5 h-5 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+              </svg>
+              Terminal Status
+            </h2>
+            <div class="text-4xl font-bold text-white mb-2 bg-gradient-to-r from-orange-400 to-orange-300 bg-clip-text text-transparent">Ready</div>
+            <div class="text-sm text-gray-400">All systems operational</div>
+          </div>
+
+          <!-- Features Card -->
+          <div class="glass rounded-2xl p-6 card-glow-blue animate-stagger-3 md:col-span-2 lg:col-span-1">
+            <h2 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+              </svg>
+              Latest Features
+            </h2>
+            <ul class="space-y-3 text-gray-300" id="updates-list">
+              <li class="flex items-start gap-3">
+                <span class="text-blue-400 mt-1 font-bold">▸</span>
+                <span><span class="text-white font-medium">Tab Completion</span> - Press Tab for autocomplete</span>
+              </li>
+              <li class="flex items-start gap-3">
+                <span class="text-orange-400 mt-1 font-bold">▸</span>
+                <span><span class="text-white font-medium">History Search</span> - Ctrl+R for command search</span>
+              </li>
+              <li class="flex items-start gap-3">
+                <span class="text-blue-400 mt-1 font-bold">▸</span>
+                <span><span class="text-white font-medium">AI Integration</span> - JOSIEFIED model powered</span>
+              </li>
+            </ul>
           </div>
         </div>
       </div>
-      <h1 class="text-5xl md:text-7xl font-bold text-white mb-6 tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400">
-        Professional Terminal for the Web
-      </h1>
-      <p class="text-xl text-gray-300 mb-10 max-w-2xl mx-auto leading-relaxed">
-        Clay gives you a powerful, AI-augmented terminal experience right in your browser. Full system access, tab completion, history search, and more.
-      </p>
-      <div class="flex gap-4 justify-center flex-wrap">
-        <button id="open-terminal" class="px-8 py-4 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white rounded-xl font-semibold text-lg shadow-2xl hover:shadow-blue-500/50 transition-all transform hover:scale-105 border border-blue-400/50">
-          Open Terminal
-        </button>
-        <a href="https://www.npmjs.com/package/clay-util" target="_blank" class="px-8 py-4 glass hover:bg-gray-800/70 border border-white/20 text-white rounded-xl font-semibold text-lg shadow-xl hover:shadow-2xl transition-all transform hover:scale-105">
-          Documentation
-        </a>
-        <button id="install-pwa-btn-hero" class="px-8 py-4 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white rounded-xl font-semibold text-lg shadow-2xl hover:shadow-green-500/50 transition-all transform hover:scale-105 border border-green-400/50" style="display: none;">
-          📱 Install App
-        </button>
-      </div>
-    </div>
+    </main>
   `;
 
-  const dashboard = document.createElement('div');
-  dashboard.className = 'px-6 py-12 relative';
-  dashboard.innerHTML = `
-    <div class="max-w-7xl mx-auto">
-      <div class="grid gap-6 md:grid-cols-3">
-        <div class="glass rounded-2xl shadow-2xl p-6 border border-white/10 hover:border-white/20 transition-all animate-fade-in">
-          <h2 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-            <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-            </svg>
-            Now
-          </h2>
-          <div id="clock" class="text-4xl font-bold text-white mb-2 bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent"></div>
-          <div id="date" class="text-sm text-gray-400"></div>
-        </div>
-        <div class="glass rounded-2xl shadow-2xl p-6 border border-white/10 hover:border-white/20 transition-all md:col-span-2 animate-fade-in">
-          <h2 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-            <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
-            </svg>
-            Latest Updates
-          </h2>
-          <ul class="space-y-3 text-gray-300" id="updates-list">
-            <li class="flex items-start gap-3">
-              <span class="text-blue-400 mt-1 font-bold">▸</span>
-              <span><span class="text-white font-medium">Tab Completion</span> - Press Tab for command/file autocomplete</span>
-            </li>
-            <li class="flex items-start gap-3">
-              <span class="text-blue-400 mt-1 font-bold">▸</span>
-              <span><span class="text-white font-medium">History Search</span> - Ctrl+R for reverse command search</span>
-            </li>
-            <li class="flex items-start gap-3">
-              <span class="text-blue-400 mt-1 font-bold">▸</span>
-              <span><span class="text-white font-medium">File Operations</span> - touch, mkdir, rm, mv, cp commands</span>
-            </li>
-            <li class="flex items-start gap-3">
-              <span class="text-blue-400 mt-1 font-bold">▸</span>
-              <span><span class="text-white font-medium">Enhanced UI</span> - Glassmorphism design with animations</span>
-            </li>
-            <li class="flex items-start gap-3">
-              <span class="text-blue-400 mt-1 font-bold">▸</span>
-              <span><span class="text-white font-medium">Status Bar</span> - Real-time status indicators with OS/CPU info</span>
-            </li>
-          </ul>
-        </div>
-      </div>
-    </div>
-  `;
-
-  wrapper.appendChild(navbar);
-  wrapper.appendChild(hero);
-  wrapper.appendChild(dashboard);
+  wrapper.appendChild(sidebar);
+  wrapper.appendChild(mainContent);
   root.appendChild(wrapper);
 
   // Theme toggle
@@ -3718,92 +3768,108 @@ function renderTerminalView(): void {
   const root = document.getElementById('app-root')!;
   root.innerHTML = '';
   const layout = document.createElement('div');
-  layout.className = 'min-h-screen flex flex-col bg-gray-950';
+  layout.className = 'min-h-screen flex';
   layout.innerHTML = `
-    <!-- Enhanced Status Bar with Modern Glassmorphism -->
-    <div id="status-bar" class="glass px-6 py-3.5 animate-fade-in relative z-20">
-      <div class="flex items-center justify-between gap-4">
-        <div class="flex items-center gap-4 flex-wrap">
-          <!-- Back Button -->
-          <button id="back-home" class="px-3 py-1.5 bg-gray-800/50 hover:bg-gray-700/50 text-gray-200 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-1.5 hover:scale-105 border border-gray-700/50">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
-            </svg>
-            Dashboard
-          </button>
-          
-          <!-- Status Indicators with Icons -->
-          <div class="flex items-center gap-2">
-            <div id="webvm-status" class="flex items-center gap-2 px-2.5 py-1 rounded-lg bg-gray-800/50 border border-gray-700/50 hover:bg-gray-700/50 transition-all">
+    <!-- Left Sidebar Navigation -->
+    <aside class="sidebar w-20 flex flex-col items-center py-6 animate-slide-in relative z-10">
+      <button id="back-home" class="mb-8 w-12 h-12 rounded-xl glass flex items-center justify-center group hover:bg-white/5 transition-all" title="Back to Dashboard">
+        <svg class="w-6 h-6 text-gray-400 group-hover:text-blue-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+        </svg>
+      </button>
+      <nav class="flex-1 flex flex-col gap-4 w-full px-2">
+        <button class="sidebar-item active w-full p-3 rounded-lg flex items-center justify-center group relative" title="Terminal">
+          <svg class="w-6 h-6 text-blue-400 group-hover:text-blue-300 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+          </svg>
+        </button>
+        <button class="sidebar-item w-full p-3 rounded-lg flex items-center justify-center group relative" title="Settings">
+          <svg class="w-6 h-6 text-gray-400 group-hover:text-blue-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-3.318 4.325-3.318 2.4 0 4.899 1.562 4.325 3.318m-1.455 4.315c-.426 1.756-1.924 2.318-4.325 2.318-2.4 0-3.899-.562-4.325-2.318m-1.455 4.315c.426 1.756 2.924 3.318 4.325 3.318 2.4 0 4.899-1.562 4.325-3.318m-1.455-4.315c-.426-1.756-1.924-2.318-4.325-2.318-2.4 0-3.899.562-4.325 2.318"/>
+          </svg>
+        </button>
+        <button class="sidebar-item w-full p-3 rounded-lg flex items-center justify-center group relative" title="Files">
+          <svg class="w-6 h-6 text-gray-400 group-hover:text-blue-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
+          </svg>
+        </button>
+        <button class="sidebar-item w-full p-3 rounded-lg flex items-center justify-center group relative" title="History">
+          <svg class="w-6 h-6 text-gray-400 group-hover:text-blue-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+        </button>
+        <button class="sidebar-item w-full p-3 rounded-lg flex items-center justify-center group relative" title="AI Assistant">
+          <svg class="w-6 h-6 text-gray-400 group-hover:text-orange-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+          </svg>
+        </button>
+        <div class="h-px bg-white/10 my-2"></div>
+        <button class="sidebar-item w-full p-3 rounded-lg flex items-center justify-center group relative" title="User Profile">
+          <div class="w-8 h-8 rounded-full bg-gradient-to-br from-blue-600 to-orange-600 flex items-center justify-center text-white font-semibold text-xs">JB</div>
+        </button>
+      </nav>
+    </aside>
+
+    <!-- Main Content Area -->
+    <div class="flex-1 flex flex-col">
+      <!-- Compact Status Bar -->
+      <div id="status-bar" class="glass border-b border-white/10 px-6 py-3 animate-fade-in relative z-20">
+        <div class="flex items-center justify-between gap-4">
+          <div class="flex items-center gap-3 flex-wrap">
+            <!-- Status Indicators -->
+            <div id="webvm-status" class="flex items-center gap-2 px-3 py-1.5 rounded-lg glass hover:bg-white/5 transition-all">
               <div id="webvm-dot" class="w-2 h-2 rounded-full bg-gray-500"></div>
               <span id="webvm-text" class="text-xs text-gray-300 font-medium">WebVM</span>
             </div>
-            
-            <div id="bridge-status" class="flex items-center gap-2 px-2.5 py-1 rounded-lg bg-gray-800/50 border border-gray-700/50 hover:bg-gray-700/50 transition-all">
+            <div id="bridge-status" class="flex items-center gap-2 px-3 py-1.5 rounded-lg glass hover:bg-white/5 transition-all">
               <div id="bridge-dot" class="w-2 h-2 rounded-full bg-gray-500"></div>
               <span id="bridge-text" class="text-xs text-gray-300 font-medium">Bridge</span>
             </div>
-            
-            <div id="websocket-status" class="flex items-center gap-2 px-2.5 py-1 rounded-lg bg-gray-800/50 border border-gray-700/50 hover:bg-gray-700/50 transition-all">
+            <div id="websocket-status" class="flex items-center gap-2 px-3 py-1.5 rounded-lg glass hover:bg-white/5 transition-all">
               <div id="websocket-dot" class="w-2 h-2 rounded-full bg-gray-500"></div>
               <span id="websocket-text" class="text-xs text-gray-300 font-medium">WS</span>
             </div>
-            
-            <div id="ai-status" class="flex items-center gap-2 px-2.5 py-1 rounded-lg bg-gray-800/50 border border-gray-700/50 hover:bg-gray-700/50 transition-all">
+            <div id="ai-status" class="flex items-center gap-2 px-3 py-1.5 rounded-lg glass hover:bg-white/5 transition-all">
               <div id="ai-dot" class="w-2 h-2 rounded-full bg-gray-500"></div>
               <span id="ai-text" class="text-xs text-gray-300 font-medium">AI</span>
             </div>
-            
-            <!-- Scan Filesystem Button -->
-            <button id="scan-filesystem-btn" class="px-3 py-1.5 bg-blue-600/50 hover:bg-blue-600/70 text-blue-200 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-1.5 hover:scale-105 border border-blue-500/50">
+            <button id="scan-filesystem-btn" class="px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-1.5 hover:scale-105 glass hover:bg-white/5" style="background: rgba(37, 99, 235, 0.3); border: 1px solid rgba(37, 99, 235, 0.5); color: rgb(191, 219, 254);">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
               </svg>
               <span id="scan-filesystem-text">Scan Files</span>
             </button>
-            
-            <div id="os-info" class="px-2.5 py-1 rounded-lg bg-gray-800/50 border border-gray-700/50">
+            <div id="os-info" class="px-3 py-1.5 rounded-lg glass">
               <span id="os-text" class="text-xs text-gray-300 font-medium">OS: Unknown</span>
             </div>
-            
-            <div id="cpu-usage" class="px-2.5 py-1 rounded-lg bg-gray-800/50 border border-gray-700/50">
+            <div id="cpu-usage" class="px-3 py-1.5 rounded-lg glass">
               <span id="cpu-text" class="text-xs text-gray-300 font-medium">CPU: --</span>
             </div>
-            
-            <div id="search-status" class="flex items-center gap-2 px-2.5 py-1 rounded-lg bg-gray-800/50 border border-gray-700/50 hover:bg-gray-700/50 transition-all">
-              <div id="search-dot" class="w-2 h-2 rounded-full bg-gray-500"></div>
-              <span id="search-text" class="text-xs text-gray-300 font-medium">Search: --</span>
-            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <select id="model-select" class="px-3 py-1.5 glass rounded-lg text-xs font-medium cursor-pointer transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/50" style="border: 1px solid rgba(255, 255, 255, 0.1);">
+              <option value="q4f16_1">JOSIEFIED Q4 (Fast)</option>
+              <option value="q4f32_1">JOSIEFIED Q4 F32</option>
+              <option value="q8f16_1">JOSIEFIED Q8 (Better)</option>
+              <option value="f16">JOSIEFIED F16 (Best)</option>
+            </select>
+            <button id="theme-toggle-terminal" class="p-2 rounded-lg glass hover:bg-white/5 transition-all">
+              <svg id="sun-icon-terminal" class="w-4 h-4 text-gray-400 dark:hidden" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clip-rule="evenodd"/>
+              </svg>
+              <svg id="moon-icon-terminal" class="w-4 h-4 text-gray-400 hidden dark:block" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/>
+              </svg>
+            </button>
           </div>
         </div>
-        
-        <!-- Right Side Actions -->
-        <div class="flex items-center gap-2">
-          <!-- Model Selector (JOSIEFIED Quantization) -->
-          <select id="model-select" class="px-3 py-1.5 bg-gray-800/50 hover:bg-gray-700/50 text-gray-200 rounded-lg text-xs font-medium border border-gray-700/50 cursor-pointer transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/50">
-            <option value="q4f16_1">JOSIEFIED Q4 (Fast)</option>
-            <option value="q4f32_1">JOSIEFIED Q4 F32</option>
-            <option value="q8f16_1">JOSIEFIED Q8 (Better)</option>
-            <option value="f16">JOSIEFIED F16 (Best)</option>
-          </select>
-          
-          <!-- Theme Toggle -->
-          <button id="theme-toggle-terminal" class="p-2 rounded-lg bg-gray-800/50 hover:bg-gray-700/50 transition-all border border-gray-700/50 hover:scale-105">
-            <svg id="sun-icon-terminal" class="w-4 h-4 text-gray-400 dark:hidden" fill="currentColor" viewBox="0 0 20 20">
-              <path fill-rule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clip-rule="evenodd"/>
-            </svg>
-            <svg id="moon-icon-terminal" class="w-4 h-4 text-gray-400 hidden dark:block" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/>
-            </svg>
-          </button>
-        </div>
       </div>
-    </div>
-    
-    <!-- Enhanced Terminal Container with Modern Glassmorphism -->
-    <div class="flex-1 overflow-hidden p-6 relative">
-      <div class="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-purple-500/5 to-pink-500/5 rounded-3xl blur-3xl"></div>
-      <div id="terminal" class="w-full h-full glass rounded-2xl shadow-2xl animate-fade-in relative z-10"></div>
+      
+      <!-- Terminal Container -->
+      <div class="flex-1 overflow-hidden p-6 relative">
+        <div class="absolute inset-0 bg-gradient-to-br from-blue-600/5 via-blue-500/5 to-orange-600/5 rounded-3xl blur-3xl"></div>
+        <div id="terminal" class="w-full h-full glass rounded-2xl shadow-2xl animate-fade-in relative z-10"></div>
+      </div>
     </div>
   `;
   root.appendChild(layout);

@@ -172,10 +172,7 @@ class ClayWebTerminal {
     
     this.isChromeOS = isChromeOS();
     
-    // Try to connect to bridge first (real system access), fallback to Web Worker
-    this.initializeBackend();
-
-    // Expose to window for UI access
+    // Expose to window for UI access (do this early so UI can access it)
     (window as any).clayTerminal = this;
 
     // Wait for DOM to be ready before initializing
@@ -193,9 +190,18 @@ class ClayWebTerminal {
       this.initializeStatusBar();
       this.setupScanButton();
       
-      // Then initialize terminal
+      // Then initialize terminal (this must happen before backend)
       this.initializeTerminal();
-      this.setupBackend();
+      
+      // Initialize backend (this will work on all platforms)
+      this.initializeBackend().catch(error => {
+        // Even if backend fails, terminal should still be usable
+        console.error('[Terminal] Backend initialization failed:', error);
+        this.terminal.write('\r\n\x1b[33m[INFO]\x1b[0m Terminal is ready. AI Assistant (@ai) is available!\r\n');
+        this.writePrompt();
+      });
+      
+      // Setup other features
       this.checkForShareLink();
       this.setupKeyboardShortcuts();
       this.setupCommandPalette();
@@ -1193,17 +1199,30 @@ echo $! > /tmp/clay-bridge.pid
       setTimeout(() => {
         const retryElement = document.getElementById('terminal');
         if (retryElement) {
-          this.terminal.open(retryElement);
-          this.setupTerminalAfterOpen();
+          try {
+            this.terminal.open(retryElement);
+            this.setupTerminalAfterOpen();
+          } catch (error) {
+            console.error('Failed to open terminal:', error);
+            // Terminal should still be usable even if open fails
+          }
         } else {
           console.error('Terminal element still not found after retry');
+          // Write a message to console at least
+          console.warn('Terminal will not be functional until DOM element is available');
         }
       }, 200);
       return;
     }
 
-    this.terminal.open(document.getElementById('terminal')!);
-    this.setupTerminalAfterOpen();
+    try {
+      this.terminal.open(terminalElement);
+      this.setupTerminalAfterOpen();
+    } catch (error) {
+      console.error('Failed to open terminal:', error);
+      // Try to write a welcome message anyway
+      this.printWelcomeMessage();
+    }
   }
 
   private setupTerminalAfterOpen(): void {
@@ -1898,8 +1917,11 @@ echo $! > /tmp/clay-bridge.pid
     
     try {
       // Check if bridge is available
-      if (!this.useBridge || !this.backend) {
-        throw new Error('Bridge not connected. Start the bridge server to scan filesystem.');
+      if (!this.useBridge || !this.backend || !this.backend.getConnected()) {
+        const errorMsg = this.isChromeOS
+          ? 'Bridge not connected. Start the bridge server to scan filesystem.'
+          : 'Filesystem scanning requires the bridge server. Start it with: cd bridge && npm install && npm start';
+        throw new Error(errorMsg);
       }
       
       const response = await fetch('http://127.0.0.1:8765/api/filesystem/scan', {
@@ -1930,7 +1952,12 @@ echo $! > /tmp/clay-bridge.pid
     } catch (error: any) {
       const errorMsg = error.message || 'Unknown error';
       this.terminal.write(`\r\n\x1b[31m[SCAN ERROR]\x1b[0m ${errorMsg}\r\n`);
-      this.terminal.write(`\x1b[33m[INFO]\x1b[0m Make sure the bridge server is running: cd bridge && npm start\r\n`);
+      if (!this.isChromeOS) {
+        this.terminal.write(`\x1b[33m[INFO]\x1b[0m Filesystem scanning requires the bridge server.\r\n`);
+        this.terminal.write(`\x1b[36m[INFO]\x1b[0m Start it with: cd bridge && npm install && npm start\r\n`);
+      } else {
+        this.terminal.write(`\x1b[33m[INFO]\x1b[0m Make sure the bridge server is running: cd bridge && npm start\r\n`);
+      }
       notificationManager.error(`Scan failed: ${errorMsg}`);
       this.writePrompt();
     } finally {
@@ -1945,17 +1972,19 @@ echo $! > /tmp/clay-bridge.pid
   }
 
   private setupSettingsUnlocker(): void {
-    // Add command to open settings unlocker
-    commandPalette.register({
-      id: 'chromeos-settings',
-      label: 'ChromeOS Settings',
-      description: 'Open ChromeOS hidden settings unlocker',
-      shortcut: 'Ctrl+Shift+S',
-      category: 'System',
-      callback: () => {
-        settingsUnlockerUI.open();
-      }
-    });
+    // Add command to open settings unlocker (only on ChromeOS)
+    if (this.isChromeOS) {
+      commandPalette.register({
+        id: 'chromeos-settings',
+        label: 'ChromeOS Settings',
+        description: 'Open ChromeOS hidden settings unlocker',
+        shortcut: 'Ctrl+Shift+S',
+        category: 'System',
+        callback: () => {
+          settingsUnlockerUI.open();
+        }
+      });
+    }
   }
 
   private async checkLinuxFilesAccess(): Promise<string | null> {
@@ -2015,21 +2044,21 @@ echo $! > /tmp/clay-bridge.pid
 
   private async initializeBackend(): Promise<void> {
     // Use enhanced bridge system with automatic fallback
+    // For non-ChromeOS, prefer WebVM for faster startup
+    // For ChromeOS, prefer external bridge but fallback to WebVM
     try {
       const enhancedBridge = getEnhancedBridge({
-        preferredType: this.isChromeOS ? 'external' : 'external',
+        preferredType: this.isChromeOS ? 'external' : 'webvm',
         enableAutoFallback: true,
-        retryAttempts: 3,
-        timeout: 10000
+        retryAttempts: this.isChromeOS ? 3 : 1, // Faster fallback on non-ChromeOS
+        timeout: this.isChromeOS ? 10000 : 3000 // Shorter timeout on non-ChromeOS
       });
 
-      this.backend = await ErrorHandler.safeExecute(
-        () => enhancedBridge.initialize(),
-        new WebWorkerBackendWrapper(),
-        { component: 'ClayWebTerminal', operation: 'initializeBackend' }
-      );
+      // Initialize backend - this will always succeed (falls back to WebVM)
+      this.backend = await enhancedBridge.initialize();
 
       if (!this.backend) {
+        // This should never happen, but just in case
         throw new Error('Failed to initialize any bridge');
       }
 
@@ -2041,6 +2070,7 @@ echo $! > /tmp/clay-bridge.pid
       if (bridgeType === 'external') {
         this.updateBridgeStatus('connecting');
         this.updateWebSocketStatus('connecting');
+        this.updateWebVMStatus('disconnected');
       } else {
         this.updateWebVMStatus('connecting');
         this.updateBridgeStatus('disconnected');
@@ -2066,7 +2096,7 @@ echo $! > /tmp/clay-bridge.pid
           this.updateWebVMStatus('disconnected');
           
           // Check for Linux Files access (ChromeOS specific)
-    if (this.isChromeOS) {
+          if (this.isChromeOS) {
             const linuxFilesPath = await ensureAsyncValue(
               () => this.checkLinuxFilesAccess(),
               null,
@@ -2095,6 +2125,11 @@ echo $! > /tmp/clay-bridge.pid
         this.terminal.write('\x1b[33m[INFO]\x1b[0m To enable full system commands, start the bridge server:\r\n');
         this.terminal.write('\x1b[36m[INFO]\x1b[0m   cd bridge && npm install && npm start\r\n');
         this.terminal.write('\x1b[33m[INFO]\x1b[0m The terminal will auto-connect when bridge is available.\r\n');
+      } else if (bridgeType !== 'external' && this.isChromeOS) {
+        // On ChromeOS, try to auto-start bridge in background
+        this.autoStartBridgeOnChromeOS().catch(() => {
+          // Silent failure - WebVM is working fine
+        });
       }
 
       return; // Successfully initialized
@@ -2105,7 +2140,7 @@ echo $! > /tmp/clay-bridge.pid
         details: { isChromeOS: this.isChromeOS }
       });
 
-      // Final fallback to WebVM
+      // Final fallback to WebVM - this should always work
       console.warn('[INFO] Enhanced bridge failed, using WebVM fallback');
       this.backend = new WebWorkerBackendWrapper();
       this.useBridge = false;
@@ -2116,200 +2151,19 @@ echo $! > /tmp/clay-bridge.pid
         this.updateWebVMStatus('connected');
         this.terminal.write('\r\n\x1b[36m[INFO]\x1b[0m Running in WebVM mode\r\n');
         this.terminal.write('\x1b[32m[INFO]\x1b[0m AI Assistant (@ai) is always available!\r\n');
+        
+        // On non-ChromeOS, show helpful message
+        if (!this.isChromeOS) {
+          this.terminal.write('\x1b[33m[INFO]\x1b[0m WebVM provides basic terminal functionality.\r\n');
+          this.terminal.write('\x1b[33m[INFO]\x1b[0m For full system access, start the bridge server.\r\n');
+        }
       } catch (webvmError) {
+        // Even WebVM failed - this is very rare, but terminal should still work
         this.updateWebVMStatus('error');
         this.terminal.write(`\r\n\x1b[31m[ERROR]\x1b[0m Failed to initialize terminal backend\r\n`);
         this.terminal.write('\x1b[33m[INFO]\x1b[0m AI Assistant (@ai) is still available!\r\n');
+        this.terminal.write('\x1b[33m[INFO]\x1b[0m Some terminal features may be limited.\r\n');
       }
-    }
-    
-    // All bridge initialization is handled by EnhancedBridge above
-    // This section should not be reached, but kept as final safety net
-    if (!this.backend) {
-      try {
-        const bridge = new BridgeBackend();
-        const isHealthy = await bridge.healthCheck();
-        
-        if (!isHealthy) {
-          // Bridge not running, try to auto-start it
-          try {
-            await this.autoStartBridgeOnChromeOS();
-            
-            // Wait a moment for server to start
-            await new Promise(resolve => setTimeout(resolve, 3000));
-            
-            // Check again
-            const isHealthyAfterStart = await bridge.healthCheck();
-            if (!isHealthyAfterStart) {
-              // Failed to start, show error popup with diagnostics
-              await this.showBridgeStartupError(
-                'Bridge server failed to start automatically.\n\n' +
-                'The bridge server needs to be started manually from the Linux terminal.\n' +
-                'See the diagnostics and steps below to fix this.'
-              );
-              // Continue to WebVM fallback
-            } else {
-              // Successfully started, proceed to connect
-            }
-          } catch (autoStartError: any) {
-            // Auto-start failed, show detailed error but continue to fallback
-            console.warn('[ChromeOS] Auto-start failed:', autoStartError);
-            await this.showBridgeStartupError(
-              `Auto-start failed: ${autoStartError.message}\n\n` +
-              'This usually means:\n' +
-              '1. Node.js or npm is not installed\n' +
-              '2. The bridge directory does not exist\n' +
-              '3. Dependencies are not installed\n' +
-              '4. The bridge server failed to start\n\n' +
-              'Continuing with WebVM mode. Please start the bridge manually.'
-            );
-          }
-        }
-      } catch (error: any) {
-        console.warn('[ChromeOS] Bridge check failed, falling back to WebVM:', error);
-        // Continue to fallback on ChromeOS too if bridge fails
-      }
-    }
-    
-    // Try to connect to bridge first (works on any platform)
-    let bridgeConnected = false;
-    try {
-      const bridge = new BridgeBackend();
-      const isHealthy = await bridge.healthCheck();
-      if (isHealthy) {
-        console.log('[INFO] Bridge server found, using real system access');
-        this.backend = bridge;
-        this.useBridge = true;
-        this.updateBridgeStatus('connecting');
-        this.updateWebSocketStatus('connecting');
-        
-        // Actually connect to the WebSocket
-        try {
-          await this.setupBackend();
-          bridgeConnected = true;
-          
-          // Check for Linux Files access (ChromeOS specific)
-          if (this.isChromeOS) {
-          const linuxFilesPath = await this.checkLinuxFilesAccess();
-          if (linuxFilesPath) {
-            this.terminal.write(`\r\n\x1b[32m[INFO]\x1b[0m Linux Files access detected: ${linuxFilesPath}\r\n`);
-            this.terminal.write(`\x1b[33m[INFO]\x1b[0m Files will be saved to Linux Files folder when possible.\r\n`);
-          }
-          }
-        } catch (connectError: any) {
-          console.error('[ERROR] Failed to connect to bridge WebSocket:', connectError);
-          this.updateBridgeStatus('error');
-          this.updateWebSocketStatus('error');
-          bridgeConnected = false;
-          
-          // On ChromeOS, show error but continue to retry
-          if (this.isChromeOS) {
-            console.warn('[ChromeOS] Bridge connection failed, will retry in background');
-          }
-        }
-      }
-    } catch (error) {
-      console.log('[INFO] Bridge server not available, using WebVM fallback');
-      bridgeConnected = false;
-    }
-    
-    // If bridge connected successfully, set up background retry for reconnection
-    if (bridgeConnected) {
-      // Set up background retry in case connection drops
-      setInterval(async () => {
-        if (!this.isConnected && this.useBridge) {
-          try {
-            const bridge = new BridgeBackend();
-            const isHealthy = await bridge.healthCheck();
-            if (isHealthy && !this.isConnected) {
-              console.log('[INFO] Reconnecting to bridge...');
-              this.backend = bridge;
-              await this.setupBackend();
-      }
-    } catch (error) {
-            // Silent retry
-          }
-        }
-      }, 5000);
-      return;
-    }
-    
-    // Fallback to WebVM (works on all platforms, including ChromeOS if bridge fails)
-    try {
-      this.backend = new WebWorkerBackendWrapper();
-      this.useBridge = false;
-    this.updateBridgeStatus('disconnected');
-    this.updateWebSocketStatus('disconnected');
-      this.updateWebVMStatus('connecting');
-      
-      // Initialize WebVM backend (connect)
-      await this.backend.connect();
-      
-      // Update status
-      this.updateWebVMStatus('connected');
-      
-      // Show helpful message
-      const platformMsg = this.isChromeOS 
-        ? '\x1b[33m[INFO]\x1b[0m Running in WebVM mode (bridge not available)\r\n'
-        : '\x1b[36m[INFO]\x1b[0m Running in WebVM mode (browser-based)\r\n';
-      
-      this.terminal.write(`\r\n${platformMsg}`);
-      this.terminal.write('\x1b[33m[INFO]\x1b[0m Available commands: ls, cd, pwd, echo, cat, clear, help, @ai\r\n');
-      this.terminal.write('\x1b[32m[INFO]\x1b[0m AI Assistant (@ai) is always available!\r\n');
-      
-      if (!this.isChromeOS) {
-        this.terminal.write('\x1b[33m[INFO]\x1b[0m To enable full system commands, start the bridge server:\r\n');
-        this.terminal.write('\x1b[36m[INFO]\x1b[0m   cd bridge && npm install && npm start\r\n');
-        this.terminal.write('\x1b[33m[INFO]\x1b[0m The terminal will auto-connect when bridge is available.\r\n');
-      } else {
-        this.terminal.write('\x1b[33m[INFO]\x1b[0m The terminal will auto-connect to bridge when available.\r\n');
-      }
-      
-      // Set up background retry for bridge connection (especially on ChromeOS)
-    const bridgeRetryInterval = setInterval(async () => {
-        if (!this.useBridge) {
-        try {
-          const bridge = new BridgeBackend();
-          const isHealthy = await bridge.healthCheck();
-          if (isHealthy) {
-              console.log('[INFO] Bridge server found, switching from WebVM to real system');
-              clearInterval(bridgeRetryInterval);
-              
-            this.backend = bridge;
-            this.useBridge = true;
-            this.updateBridgeStatus('connecting');
-            this.updateWebSocketStatus('connecting');
-              this.updateWebVMStatus('disconnected');
-            
-            try {
-              await this.setupBackend();
-              this.terminal.write('\r\n\x1b[32m[INFO]\x1b[0m Connected to real system terminal!\r\n');
-              this.terminal.write('\x1b[33m[INFO]\x1b[0m All commands now execute on your system.\r\n');
-              this.writePrompt();
-            } catch (connectError) {
-              console.error('[ERROR] Failed to connect WebSocket:', connectError);
-              this.updateBridgeStatus('error');
-              this.updateWebSocketStatus('error');
-                // Fall back to WebVM
-                this.backend = new WebWorkerBackendWrapper();
-                this.useBridge = false;
-                await this.backend.connect();
-                this.updateWebVMStatus('connected');
-            }
-          }
-        } catch (error) {
-            // Continue with WebVM
-        }
-      } else {
-        clearInterval(bridgeRetryInterval);
-      }
-      }, this.isChromeOS ? 2000 : 5000); // More frequent on ChromeOS
-      
-    } catch (error: any) {
-      console.error('[ERROR] WebVM initialization failed:', error);
-      this.updateWebVMStatus('error');
-      this.terminal.write(`\r\n\x1b[31m[ERROR]\x1b[0m Failed to initialize terminal backend: ${error.message}\r\n`);
-      this.terminal.write('\x1b[33m[INFO]\x1b[0m AI Assistant (@ai) is still available!\r\n');
     }
   }
 
@@ -2319,21 +2173,28 @@ echo $! > /tmp/clay-bridge.pid
     }
     
     try {
-      if (this.useBridge) {
-        this.terminal.write('\r\n\x1b[33m[INFO]\x1b[0m Connecting to Clay Terminal Bridge...\r\n');
-        this.terminal.write('\x1b[32m[INFO]\x1b[0m Real system command execution enabled!\r\n');
-        this.terminal.write('\x1b[32m[INFO]\x1b[0m Full terminal access - alternative to Crostini/Crosh\r\n');
-        this.terminal.write('\x1b[32m[INFO]\x1b[0m All commands execute on your ChromeOS system.\r\n');
-        
-        // Show Linux Files status
-        const linuxFilesPath = await this.checkLinuxFilesAccess();
-        if (linuxFilesPath) {
-          this.terminal.write(`\x1b[36m[Files]\x1b[0m Linux Files folder: ${linuxFilesPath}\r\n`);
+      // Only show connection messages if not already connected
+      if (!this.isConnected) {
+        if (this.useBridge) {
+          // Bridge-specific messages
+          this.terminal.write('\r\n\x1b[33m[INFO]\x1b[0m Connecting to Clay Terminal Bridge...\r\n');
+          this.terminal.write('\x1b[32m[INFO]\x1b[0m Real system command execution enabled!\r\n');
+          
+          // ChromeOS-specific messages
+          if (this.isChromeOS) {
+            this.terminal.write('\x1b[32m[INFO]\x1b[0m Full terminal access - alternative to Crostini/Crosh\r\n');
+            this.terminal.write('\x1b[32m[INFO]\x1b[0m All commands execute on your ChromeOS system.\r\n');
+            
+            // Show Linux Files status
+            const linuxFilesPath = await this.checkLinuxFilesAccess();
+            if (linuxFilesPath) {
+              this.terminal.write(`\x1b[36m[Files]\x1b[0m Linux Files folder: ${linuxFilesPath}\r\n`);
+            }
+          } else {
+            this.terminal.write('\x1b[32m[INFO]\x1b[0m All commands execute on your system.\r\n');
+          }
         }
-      } else {
-        this.terminal.write('\r\n\x1b[33m[INFO]\x1b[0m Running in browser mode (limited commands)\r\n');
-        this.terminal.write('\x1b[33m[INFO]\x1b[0m Start bridge server for full terminal access.\r\n');
-        this.terminal.write('\x1b[33m[INFO]\x1b[0m Run: cd bridge && npm install && npm start\r\n');
+        // WebVM messages are handled in initializeBackend()
       }
       
       // Set up output handler
@@ -2660,7 +2521,9 @@ echo $! > /tmp/clay-bridge.pid
       this.terminal.write(`  \x1b[32m@ai <question>\x1b[0m    - Ask AI assistant (always available)\r\n`);
       this.terminal.write(`  \x1b[32msearch <query>\x1b[0m     - Web search (uses SearXNG or LangSearch)\r\n`);
       this.terminal.write(`  \x1b[32m@search <query>\x1b[0m   - Web search (alternative syntax)\r\n`);
-      this.terminal.write(`  \x1b[32msettings\x1b[0m          - Open ChromeOS hidden settings unlocker\r\n`);
+      if (this.isChromeOS) {
+        this.terminal.write(`  \x1b[32msettings\x1b[0m          - Open ChromeOS hidden settings unlocker\r\n`);
+      }
       this.terminal.write(`  \x1b[32mscan\x1b[0m              - Scan filesystem for AI context\r\n\r\n`);
       
       // Show device-specific commands
@@ -2717,7 +2580,12 @@ echo $! > /tmp/clay-bridge.pid
     }
 
     if (command === 'settings' || command === 'chromeos-settings') {
-      settingsUnlockerUI.open();
+      if (this.isChromeOS) {
+        settingsUnlockerUI.open();
+      } else {
+        this.terminal.write('\r\n\x1b[33m[INFO]\x1b[0m ChromeOS Settings unlocker is only available on ChromeOS devices.\r\n');
+        this.terminal.write('\x1b[36m[INFO]\x1b[0m On other platforms, use standard system settings.\r\n');
+      }
       this.writePrompt();
       return;
     }
@@ -3442,22 +3310,34 @@ Note: This is a summary of the user's filesystem. Use this information to answer
   }
 
   private printWelcomeMessage(): void {
-    this.terminal.write('\r\n');
-    this.terminal.write(`\x1b[1m\x1b[36m╔═══════════════════════════════════════════════════════╗\x1b[0m\r\n`);
-    this.terminal.write(`\x1b[1m\x1b[36m║\x1b[0m  \x1b[1m\x1b[34mClay Terminal\x1b[0m - Professional Web Terminal              \x1b[1m\x1b[36m║\x1b[0m\r\n`);
-    this.terminal.write(`\x1b[1m\x1b[36m╚═══════════════════════════════════════════════════════╝\x1b[0m\r\n`);
-    this.terminal.write('\r\n');
-    this.terminal.write(`  \x1b[32m✓\x1b[0m \x1b[36mAI Assistant (JOSIEFIED)\x1b[0m - Type \x1b[33m@ai <question>\x1b[0m\r\n`);
-    this.terminal.write(`  \x1b[32m✓\x1b[0m \x1b[36mLocal AI Inference\x1b[0m - Runs entirely in browser using WebLLM\r\n`);
-    this.terminal.write(`  \x1b[32m✓\x1b[0m \x1b[36mRoot Access\x1b[0m - System-level commands with privilege escalation\r\n`);
-    this.terminal.write(`  \x1b[32m✓\x1b[0m \x1b[36mPrivileged APIs\x1b[0m - Kernel parameters, device files, system control\r\n`);
-    this.terminal.write(`  \x1b[32m✓\x1b[0m \x1b[36mWeb Search\x1b[0m - Type \x1b[33msearch <query>\x1b[0m or \x1b[33m@search <query>\x1b[0m\r\n`);
-    this.terminal.write(`  \x1b[32m✓\x1b[0m \x1b[36mTab Completion\x1b[0m - Press Tab for command/file completion\r\n`);
-    this.terminal.write(`  \x1b[32m✓\x1b[0m \x1b[36mHistory Search\x1b[0m - Press \x1b[33mCtrl+R\x1b[0m to search command history\r\n`);
-    this.terminal.write(`  \x1b[32m✓\x1b[0m \x1b[36mFile Operations\x1b[0m - touch, mkdir, rm, mv, cp supported\r\n`);
-    this.terminal.write(`  \x1b[32m✓\x1b[0m Type \x1b[33mhelp\x1b[0m for all available commands\r\n`);
-    this.terminal.write(`  \x1b[32m✓\x1b[0m Commands adapt to your device capabilities\r\n`);
-    this.terminal.write('\r\n');
+    try {
+      this.terminal.write('\r\n');
+      this.terminal.write(`\x1b[1m\x1b[36m╔═══════════════════════════════════════════════════════╗\x1b[0m\r\n`);
+      this.terminal.write(`\x1b[1m\x1b[36m║\x1b[0m  \x1b[1m\x1b[34mClay Terminal\x1b[0m - Professional Web Terminal              \x1b[1m\x1b[36m║\x1b[0m\r\n`);
+      this.terminal.write(`\x1b[1m\x1b[36m╚═══════════════════════════════════════════════════════╝\x1b[0m\r\n`);
+      this.terminal.write('\r\n');
+      this.terminal.write(`  \x1b[32m✓\x1b[0m \x1b[36mAI Assistant (JOSIEFIED)\x1b[0m - Type \x1b[33m@ai <question>\x1b[0m\r\n`);
+      this.terminal.write(`  \x1b[32m✓\x1b[0m \x1b[36mLocal AI Inference\x1b[0m - Runs entirely in browser using WebLLM\r\n`);
+      
+      // Platform-specific features
+      if (this.isChromeOS) {
+        this.terminal.write(`  \x1b[32m✓\x1b[0m \x1b[36mRoot Access\x1b[0m - System-level commands with privilege escalation\r\n`);
+        this.terminal.write(`  \x1b[32m✓\x1b[0m \x1b[36mPrivileged APIs\x1b[0m - Kernel parameters, device files, system control\r\n`);
+        this.terminal.write(`  \x1b[32m✓\x1b[0m \x1b[36mChromeOS Settings\x1b[0m - Type \x1b[33msettings\x1b[0m to unlock hidden settings\r\n`);
+      } else {
+        this.terminal.write(`  \x1b[33mℹ\x1b[0m \x1b[36mSystem Access\x1b[0m - Start bridge server for full system commands\r\n`);
+      }
+      
+      this.terminal.write(`  \x1b[32m✓\x1b[0m \x1b[36mWeb Search\x1b[0m - Type \x1b[33msearch <query>\x1b[0m or \x1b[33m@search <query>\x1b[0m\r\n`);
+      this.terminal.write(`  \x1b[32m✓\x1b[0m \x1b[36mTab Completion\x1b[0m - Press Tab for command/file completion\r\n`);
+      this.terminal.write(`  \x1b[32m✓\x1b[0m \x1b[36mHistory Search\x1b[0m - Press \x1b[33mCtrl+R\x1b[0m to search command history\r\n`);
+      this.terminal.write(`  \x1b[32m✓\x1b[0m \x1b[36mFile Operations\x1b[0m - touch, mkdir, rm, mv, cp supported\r\n`);
+      this.terminal.write(`  \x1b[32m✓\x1b[0m Type \x1b[33mhelp\x1b[0m for all available commands\r\n`);
+      this.terminal.write(`  \x1b[32m✓\x1b[0m Commands adapt to your device capabilities\r\n`);
+      this.terminal.write('\r\n');
+    } catch (error) {
+      console.warn('Failed to print welcome message:', error);
+    }
   }
 
   private hideLoading(): void {
@@ -4357,8 +4237,21 @@ function renderTerminalView(): void {
   const sidebarSettings = document.getElementById('sidebar-settings');
   if (sidebarSettings) {
     sidebarSettings.addEventListener('click', () => {
-      settingsUnlockerUI.open();
-      notificationManager.info('Opening ChromeOS Settings');
+      // Only show ChromeOS settings on ChromeOS
+      if (isChromeOS()) {
+        settingsUnlockerUI.open();
+        notificationManager.info('Opening ChromeOS Settings');
+      } else {
+        notificationManager.info('ChromeOS Settings are only available on ChromeOS devices');
+        const terminal = (window as any).clayTerminal;
+        if (terminal && terminal.terminal) {
+          terminal.terminal.write('\r\n\x1b[33m[INFO]\x1b[0m ChromeOS Settings unlocker is only available on ChromeOS devices.\r\n');
+          terminal.terminal.write('\x1b[36m[INFO]\x1b[0m On other platforms, use standard system settings.\r\n');
+          if (terminal.writePrompt) {
+            terminal.writePrompt();
+          }
+        }
+      }
     });
   }
 

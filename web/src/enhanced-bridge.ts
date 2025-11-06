@@ -121,18 +121,22 @@ export class EnhancedBridge {
   private async connectExternalBridge(): Promise<BridgeBackend | null> {
     try {
       const bridge = new BridgeBackend();
+      // Quick health check with shorter timeout for non-ChromeOS
       const isHealthy = await retryWithBackoff(
         () => bridge.healthCheck(),
         this.config.retryAttempts,
-        1000,
+        500, // Faster retry delay
         { component: 'EnhancedBridge', operation: 'connectExternalBridge' }
       );
       
       if (isHealthy) {
+        // Bridge is healthy, return it
+        // The bridge will be connected later via setupBackend()
         return bridge;
       }
     } catch (error) {
-      // External bridge not available
+      // External bridge not available - this is expected on most devices
+      console.log('[EnhancedBridge] External bridge not available:', error instanceof Error ? error.message : String(error));
     }
     
     return null;

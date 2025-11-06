@@ -91,6 +91,7 @@ class ClayWebTerminal {
   private searchStatus: 'idle' | 'searching' | 'ready' = 'idle';
   private terminalSearchOpen: boolean = false;
   private terminalSearchElement: HTMLElement | null = null;
+  private statusBarInterval: ReturnType<typeof setInterval> | null = null;
   private tabs: TerminalTab[] = [];
   private activeTabId: string | null = null;
   private tabCounter: number = 0;
@@ -172,20 +173,25 @@ class ClayWebTerminal {
     // Wait for DOM to be ready before initializing
     const init = () => {
       const terminalElement = document.getElementById('terminal');
-      if (!terminalElement) {
-        // Retry if element not found
+      const statusBar = document.getElementById('status-bar');
+      
+      if (!terminalElement || !statusBar) {
+        // Retry if elements not found
         setTimeout(init, 50);
         return;
       }
 
+      // Initialize status bar first (needs to be ready)
+      this.initializeStatusBar();
+      this.setupScanButton();
+      
+      // Then initialize terminal
       this.initializeTerminal();
       this.setupBackend();
-      this.initializeStatusBar();
       this.checkForShareLink();
       this.setupKeyboardShortcuts();
       this.setupCommandPalette();
       this.initializeTabSystem();
-      this.setupScanButton();
       this.setupSettingsUnlocker();
       
       // Initialize Lucide icons
@@ -199,11 +205,17 @@ class ClayWebTerminal {
       }, 300);
     };
 
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', () => setTimeout(init, 50));
-    } else {
-      setTimeout(init, 50);
-    }
+    // Use multiple strategies to ensure DOM is ready
+    const tryInit = () => {
+      if (document.readyState === 'complete' || document.readyState === 'interactive') {
+        setTimeout(init, 100);
+      } else {
+        document.addEventListener('DOMContentLoaded', () => setTimeout(init, 100));
+        window.addEventListener('load', () => setTimeout(init, 100));
+      }
+    };
+    
+    tryInit();
   }
 
   private checkForShareLink(): void {
@@ -278,41 +290,92 @@ class ClayWebTerminal {
   }
 
   private initializeStatusBar(): void {
-    // Update status indicators
-    this.updateWebVMStatus('connecting');
-    this.updateWebSocketStatus('disconnected');
-    this.updateBridgeStatus('disconnected');
-    this.updateAIStatus('idle');
+    // Ensure status bar exists
+    const statusBar = document.getElementById('status-bar');
+    if (!statusBar) {
+      console.warn('Status bar not found, retrying...');
+      setTimeout(() => this.initializeStatusBar(), 100);
+      return;
+    }
+
+    // Update status indicators - ensure elements exist first
+    const webvmDot = document.getElementById('webvm-dot');
+    const bridgeDot = document.getElementById('bridge-dot');
+    const websocketDot = document.getElementById('websocket-dot');
+    const aiDot = document.getElementById('ai-dot');
+    
+    if (webvmDot) this.updateWebVMStatus('connecting');
+    if (bridgeDot) this.updateBridgeStatus('disconnected');
+    if (websocketDot) this.updateWebSocketStatus('disconnected');
+    if (aiDot) this.updateAIStatus('idle');
+    
+    // Update info displays
     this.updateOSInfo();
     this.updateCPUUsage();
-    this.updateSearchStatus('idle');
+    
+    // Search status (if element exists)
+    const searchDot = document.getElementById('search-dot');
+    if (searchDot) {
+      this.updateSearchStatus('idle');
+    }
     
     // Periodically check backend status and CPU
-    setInterval(() => {
-      this.checkBackendComponents();
-      this.updateCPUUsage();
-      this.updateSearchStatus(this.searchStatus); // Refresh search status display
-    }, 2000);
+    if (!this.statusBarInterval) {
+      this.statusBarInterval = setInterval(() => {
+        this.checkBackendComponents();
+        this.updateCPUUsage();
+        if (searchDot) {
+          this.updateSearchStatus(this.searchStatus);
+        }
+      }, 2000);
+    }
     
     // Setup model selector (quantization options for JOSIEFIED)
     const modelSelect = document.getElementById('model-select') as HTMLSelectElement;
     if (modelSelect) {
-      // Update options for WebLLM quantization levels
-      modelSelect.innerHTML = `
-        <option value="q4f16_1">JOSIEFIED Q4 (Fast)</option>
-        <option value="q4f32_1">JOSIEFIED Q4 F32</option>
-        <option value="q8f16_1">JOSIEFIED Q8 (Better Quality)</option>
-        <option value="f16">JOSIEFIED F16 (Best Quality)</option>
-      `;
-      modelSelect.value = 'q4f16_1';
-      modelSelect.addEventListener('change', async () => {
-        if (this.aiAssistant) {
-          const quantization = modelSelect.value as 'q4f16_1' | 'q4f32_1' | 'q8f16_1' | 'f16';
-          this.aiAssistant.updateConfig({ quantization });
-          this.terminal.write(`\r\n\x1b[32m[AI]\x1b[0m Quantization changed to: ${quantization}\r\n`);
-          this.terminal.write(`\x1b[33m[INFO]\x1b[0m Model will reload with new quantization on next use.\r\n`);
-          this.writePrompt();
+      // Don't overwrite if already set up
+      if (!modelSelect.hasAttribute('data-initialized')) {
+        modelSelect.setAttribute('data-initialized', 'true');
+        if (!modelSelect.value) {
+          modelSelect.value = 'q4f16_1';
         }
+        modelSelect.addEventListener('change', async () => {
+          if (this.aiAssistant) {
+            const quantization = modelSelect.value as 'q4f16_1' | 'q4f32_1' | 'q8f16_1' | 'f16';
+            this.aiAssistant.updateConfig({ quantization });
+            this.terminal.write(`\r\n\x1b[32m[AI]\x1b[0m Quantization changed to: ${quantization}\r\n`);
+            this.terminal.write(`\x1b[33m[INFO]\x1b[0m Model will reload with new quantization on next use.\r\n`);
+            this.writePrompt();
+          } else {
+            notificationManager.info('AI Assistant not initialized yet');
+          }
+        });
+      }
+    }
+
+    // Setup theme toggle in status bar
+    const themeToggle = document.getElementById('theme-toggle-terminal');
+    if (themeToggle && !themeToggle.hasAttribute('data-initialized')) {
+      themeToggle.setAttribute('data-initialized', 'true');
+      themeToggle.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleDarkMode();
+        // Update icons after toggle
+        setTimeout(() => {
+          const sunIcon = document.getElementById('sun-icon-terminal');
+          const moonIcon = document.getElementById('moon-icon-terminal');
+          if (sunIcon && moonIcon) {
+            const isDark = document.documentElement.classList.contains('dark');
+            if (isDark) {
+              sunIcon.classList.add('hidden');
+              moonIcon.classList.remove('hidden');
+            } else {
+              sunIcon.classList.remove('hidden');
+              moonIcon.classList.add('hidden');
+            }
+          }
+        }, 10);
       });
     }
   }
@@ -372,23 +435,31 @@ class ClayWebTerminal {
           }
         }
       }).catch(() => {
-        // Fallback: use performance API
+        // Fallback: use performance API for memory if available
         if ('performance' in window && 'memory' in performance) {
           const memInfo = (performance as any).memory;
           if (memInfo) {
             const used = memInfo.usedJSHeapSize / 1048576;
             cpuText.textContent = `Mem: ${used.toFixed(0)}MB`;
+          } else {
+            cpuText.textContent = 'CPU: --';
           }
+        } else {
+          cpuText.textContent = 'CPU: --';
         }
       });
     } else {
-      // Browser: show memory usage
+      // Browser: show memory usage if available
       if ('performance' in window && 'memory' in performance) {
         const memInfo = (performance as any).memory;
         if (memInfo) {
           const used = memInfo.usedJSHeapSize / 1048576;
           cpuText.textContent = `Mem: ${used.toFixed(0)}MB`;
+        } else {
+          cpuText.textContent = 'CPU: --';
         }
+      } else {
+        cpuText.textContent = 'CPU: --';
       }
     }
   }
@@ -492,18 +563,21 @@ class ClayWebTerminal {
     
     const provider = this.searchProvider === 'searxng' ? 'SearXNG' : 'LangSearch';
     
+    // Remove all color classes
+    searchDot.classList.remove('bg-green-500', 'bg-gray-500', 'bg-yellow-500', 'bg-red-500', 'animate-pulse-slow', 'status-dot', 'connected');
+    
     switch (status) {
       case 'searching':
-        searchDot.className = 'w-2 h-2 rounded-full bg-yellow-500 animate-pulse-slow';
+        searchDot.classList.add('bg-yellow-500', 'animate-pulse-slow');
         searchText.textContent = `Search: ${provider}...`;
         break;
       case 'ready':
-        searchDot.className = 'w-2 h-2 rounded-full bg-green-500 status-dot connected';
+        searchDot.classList.add('bg-green-500', 'status-dot', 'connected');
         searchText.textContent = `Search: ${provider}`;
         break;
       case 'idle':
       default:
-        searchDot.className = 'w-2 h-2 rounded-full bg-gray-500';
+        searchDot.classList.add('bg-gray-500');
         searchText.textContent = `Search: ${provider}`;
         break;
     }
@@ -954,16 +1028,19 @@ echo $! > /tmp/clay-bridge.pid
     const text = document.getElementById('webvm-text');
     
     if (dot) {
+      // Remove all background color classes
+      dot.classList.remove('bg-green-500', 'bg-gray-500', 'bg-yellow-500', 'bg-red-500');
+      // Add the correct color class
       const colorMap: Record<string, string> = {
         'connected': 'bg-green-500',
         'disconnected': 'bg-gray-500',
         'connecting': 'bg-yellow-500',
         'error': 'bg-red-500'
       };
-      dot.className = `w-2 h-2 rounded-full ${colorMap[status] || 'bg-gray-500'}`;
+      dot.classList.add(colorMap[status] || 'bg-gray-500');
     }
     if (text) {
-      text.textContent = status === 'connecting' ? 'WebVM...' : 'WebVM';
+      text.textContent = 'WebVM';
     }
   }
   
@@ -973,16 +1050,19 @@ echo $! > /tmp/clay-bridge.pid
     const text = document.getElementById('websocket-text');
     
     if (dot) {
+      // Remove all background color classes
+      dot.classList.remove('bg-green-500', 'bg-gray-500', 'bg-yellow-500', 'bg-red-500');
+      // Add the correct color class
       const colorMap: Record<string, string> = {
         'connected': 'bg-green-500',
         'disconnected': 'bg-gray-500',
         'connecting': 'bg-yellow-500',
         'error': 'bg-red-500'
       };
-      dot.className = `w-2 h-2 rounded-full ${colorMap[status] || 'bg-gray-500'}`;
+      dot.classList.add(colorMap[status] || 'bg-gray-500');
     }
     if (text) {
-      text.textContent = status === 'connecting' ? 'WebSocket...' : 'WebSocket';
+      text.textContent = 'WS';
     }
   }
   
@@ -992,16 +1072,19 @@ echo $! > /tmp/clay-bridge.pid
     const text = document.getElementById('bridge-text');
     
     if (dot) {
+      // Remove all background color classes
+      dot.classList.remove('bg-green-500', 'bg-gray-500', 'bg-yellow-500', 'bg-red-500');
+      // Add the correct color class
       const colorMap: Record<string, string> = {
         'connected': 'bg-green-500',
         'disconnected': 'bg-gray-500',
         'connecting': 'bg-yellow-500',
         'error': 'bg-red-500'
       };
-      dot.className = `w-2 h-2 rounded-full ${colorMap[status] || 'bg-gray-500'}`;
+      dot.classList.add(colorMap[status] || 'bg-gray-500');
     }
     if (text) {
-      text.textContent = status === 'connecting' ? 'Bridge...' : 'Bridge';
+      text.textContent = 'Bridge';
     }
   }
 
@@ -1016,10 +1099,12 @@ echo $! > /tmp/clay-bridge.pid
         'ready': 'bg-green-500',
         'error': 'bg-red-500'
       };
+      // Remove all color classes and add the correct one
+      dot.className = dot.className.replace(/bg-(green|gray|yellow|red)-500/g, '');
       dot.className = `w-2 h-2 rounded-full ${statusMap[status] || 'bg-gray-500'}`;
     }
     if (text) {
-      text.textContent = `AI: ${status}`;
+      text.textContent = 'AI';
     }
   }
 
@@ -1693,18 +1778,27 @@ echo $! > /tmp/clay-bridge.pid
 
   private setupScanButton(): void {
     const scanBtn = document.getElementById('scan-filesystem-btn');
-    const scanText = document.getElementById('scan-filesystem-text');
-    
-    if (scanBtn) {
-      scanBtn.addEventListener('click', async () => {
-        if (this.isScanning) {
-          notificationManager.warning('Scan already in progress');
-          return;
-        }
-        
-        await this.scanFilesystem();
-      });
+    if (!scanBtn) {
+      console.warn('Scan button not found, retrying...');
+      setTimeout(() => this.setupScanButton(), 100);
+      return;
     }
+    
+    // Remove any existing listeners by cloning
+    const newScanBtn = scanBtn.cloneNode(true) as HTMLButtonElement;
+    scanBtn.parentNode?.replaceChild(newScanBtn, scanBtn);
+    
+    newScanBtn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      if (this.isScanning) {
+        notificationManager.warning('Scan already in progress');
+        return;
+      }
+      
+      await this.scanFilesystem();
+    });
   }
 
   private async scanFilesystem(): Promise<void> {
@@ -1715,12 +1809,21 @@ echo $! > /tmp/clay-bridge.pid
     const scanText = document.getElementById('scan-filesystem-text');
     
     if (scanText) scanText.textContent = 'Scanning...';
-    if (scanBtn) scanBtn.setAttribute('disabled', 'true');
+    if (scanBtn) {
+      scanBtn.setAttribute('disabled', 'true');
+      scanBtn.style.opacity = '0.6';
+      scanBtn.style.cursor = 'not-allowed';
+    }
     
     this.terminal.write(`\r\n\x1b[36m[SCAN]\x1b[0m Starting filesystem scan...\r\n`);
     notificationManager.info('Scanning filesystem... This may take a moment.');
     
     try {
+      // Check if bridge is available
+      if (!this.useBridge || !this.backend) {
+        throw new Error('Bridge not connected. Start the bridge server to scan filesystem.');
+      }
+      
       const response = await fetch('http://127.0.0.1:8765/api/filesystem/scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1730,6 +1833,10 @@ echo $! > /tmp/clay-bridge.pid
           excludePaths: ['/proc', '/sys', '/dev', '/run', '/tmp']
         })
       });
+      
+      if (!response.ok) {
+        throw new Error(`Scan failed: ${response.statusText}`);
+      }
       
       const data = await response.json();
       
@@ -1743,13 +1850,19 @@ echo $! > /tmp/clay-bridge.pid
         throw new Error(data.error || 'Scan failed');
       }
     } catch (error: any) {
-      this.terminal.write(`\r\n\x1b[31m[SCAN ERROR]\x1b[0m ${error.message}\r\n`);
-      notificationManager.error(`Scan failed: ${error.message}`);
+      const errorMsg = error.message || 'Unknown error';
+      this.terminal.write(`\r\n\x1b[31m[SCAN ERROR]\x1b[0m ${errorMsg}\r\n`);
+      this.terminal.write(`\x1b[33m[INFO]\x1b[0m Make sure the bridge server is running: cd bridge && npm start\r\n`);
+      notificationManager.error(`Scan failed: ${errorMsg}`);
       this.writePrompt();
     } finally {
       this.isScanning = false;
       if (scanText) scanText.textContent = 'Scan Files';
-      if (scanBtn) scanBtn.removeAttribute('disabled');
+      if (scanBtn) {
+        scanBtn.removeAttribute('disabled');
+        scanBtn.style.opacity = '1';
+        scanBtn.style.cursor = 'pointer';
+      }
     }
   }
 
@@ -3895,34 +4008,28 @@ function renderTerminalView(): void {
   `;
   root.appendChild(layout);
 
+  // Theme toggle handler is set up in initializeStatusBar() to avoid duplicates
+  // But we also set it up here as a fallback
   const themeToggle = document.getElementById('theme-toggle-terminal');
-  if (themeToggle) {
-    themeToggle.addEventListener('click', toggleDarkMode);
-  }
-  
-  // Update theme icons
-  function updateThemeIcons() {
-    const isDark = document.documentElement.classList.contains('dark');
-    const sunIcon = document.getElementById('sun-icon-terminal');
-    const moonIcon = document.getElementById('moon-icon-terminal');
-    if (sunIcon && moonIcon) {
-      if (isDark) {
-        sunIcon.classList.add('hidden');
-        moonIcon.classList.remove('hidden');
-      } else {
-        sunIcon.classList.remove('hidden');
-        moonIcon.classList.add('hidden');
-      }
-    }
-  }
-  
-  updateThemeIcons();
-  
-  // Also update on theme toggle
-  const themeToggleBtnTerminal = document.getElementById('theme-toggle-terminal');
-  if (themeToggleBtnTerminal) {
-    themeToggleBtnTerminal.addEventListener('click', () => {
-      setTimeout(updateThemeIcons, 10);
+  if (themeToggle && !themeToggle.hasAttribute('data-initialized')) {
+    themeToggle.setAttribute('data-initialized', 'true');
+    themeToggle.addEventListener('click', () => {
+      toggleDarkMode();
+      // Update icons after toggle
+      setTimeout(() => {
+        const sunIcon = document.getElementById('sun-icon-terminal');
+        const moonIcon = document.getElementById('moon-icon-terminal');
+        if (sunIcon && moonIcon) {
+          const isDark = document.documentElement.classList.contains('dark');
+          if (isDark) {
+            sunIcon.classList.add('hidden');
+            moonIcon.classList.remove('hidden');
+          } else {
+            sunIcon.classList.remove('hidden');
+            moonIcon.classList.add('hidden');
+          }
+        }
+      }, 10);
     });
   }
 

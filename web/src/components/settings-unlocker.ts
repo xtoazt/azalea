@@ -194,12 +194,15 @@ class SettingsUnlockerUI {
           border: 1px solid rgba(255, 255, 255, 0.1);
           border-radius: 0.75rem;
           margin-bottom: 0.75rem;
-          transition: all 0.2s;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          animation: fadeInScale 0.2s ease-out;
         }
         
         .setting-item:hover {
           background: rgba(255, 255, 255, 0.05);
           border-color: rgba(255, 255, 255, 0.15);
+          transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
         }
         
         .setting-item-header {
@@ -260,17 +263,33 @@ class SettingsUnlockerUI {
           font-size: 0.875rem;
           font-weight: 500;
           cursor: pointer;
-          transition: all 0.2s;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          position: relative;
+          overflow: hidden;
+        }
+        
+        .setting-btn::before {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background: radial-gradient(circle at center, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+          opacity: 0;
+          transition: opacity 0.3s;
         }
         
         .setting-btn:hover {
           background: rgba(59, 130, 246, 0.2);
           border-color: rgba(59, 130, 246, 0.4);
           transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+        }
+        
+        .setting-btn:hover::before {
+          opacity: 1;
         }
         
         .setting-btn:active {
-          transform: translateY(0);
+          transform: translateY(0) scale(0.98);
         }
         
         .settings-unlocker-footer {

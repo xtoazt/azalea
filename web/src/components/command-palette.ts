@@ -40,11 +40,13 @@ class CommandPalette {
             placeholder="Type a command or search..." 
             class="command-palette-input"
             autocomplete="off"
+            aria-label="Command palette search"
+            aria-describedby="command-palette-hint"
           />
         </div>
-        <div id="command-palette-list" class="command-palette-list"></div>
+        <div id="command-palette-list" class="command-palette-list" role="listbox" aria-label="Command list"></div>
         <div class="command-palette-footer">
-          <div class="command-palette-hint">
+          <div id="command-palette-hint" class="command-palette-hint" role="status" aria-live="polite">
             <kbd>↑</kbd><kbd>↓</kbd> Navigate • <kbd>Enter</kbd> Execute • <kbd>Esc</kbd> Close
           </div>
         </div>
@@ -92,10 +94,10 @@ class CommandPalette {
         .command-palette-overlay {
           position: absolute;
           inset: 0;
-          background: rgba(0, 0, 0, 0.7);
-          backdrop-filter: blur(8px);
-          -webkit-backdrop-filter: blur(8px);
-          animation: fadeIn 0.2s ease-out;
+          background: rgba(0, 0, 0, 0.75);
+          backdrop-filter: blur(12px) saturate(180%);
+          -webkit-backdrop-filter: blur(12px) saturate(180%);
+          animation: fadeIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
         
         .command-palette-content {
@@ -170,14 +172,32 @@ class CommandPalette {
           gap: 0.75rem;
           padding: 0.75rem 1rem;
           cursor: pointer;
-          transition: background 0.15s;
+          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
           border-left: 3px solid transparent;
+          position: relative;
+        }
+        
+        .command-item::before {
+          content: '';
+          position: absolute;
+          left: 0;
+          top: 0;
+          bottom: 0;
+          width: 3px;
+          background: linear-gradient(180deg, rgba(37, 99, 235, 1), rgba(234, 88, 12, 1));
+          opacity: 0;
+          transition: opacity 0.2s;
         }
         
         .command-item:hover,
         .command-item.selected {
           background: rgba(59, 130, 246, 0.15);
           border-left-color: #3b82f6;
+          transform: translateX(2px);
+        }
+        
+        .command-item.selected::before {
+          opacity: 1;
         }
         
         .command-item-icon {

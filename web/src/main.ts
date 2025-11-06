@@ -327,15 +327,23 @@ class ClayWebTerminal {
     this.updateSearchStatus('idle');
     }
     
-    // Periodically check backend status and CPU
+    // Periodically check backend status and CPU (throttled to avoid excessive updates)
     if (!this.statusBarInterval) {
+      let lastUpdate = 0;
+      const updateInterval = 2000; // Update every 2 seconds
+      
       this.statusBarInterval = setInterval(() => {
-      this.checkBackendComponents();
-      this.updateCPUUsage();
-        if (searchDot) {
-          this.updateSearchStatus(this.searchStatus);
+        const now = Date.now();
+        // Throttle updates to prevent excessive DOM manipulation
+        if (now - lastUpdate >= updateInterval) {
+          this.checkBackendComponents();
+          this.updateCPUUsage();
+          if (searchDot) {
+            this.updateSearchStatus(this.searchStatus);
+          }
+          lastUpdate = now;
         }
-    }, 2000);
+      }, 1000); // Check every second, but only update if enough time has passed
     }
     
     // Setup model selector (quantization options for JOSIEFIED)
@@ -571,24 +579,43 @@ class ClayWebTerminal {
     
     const provider = this.searchProvider === 'searxng' ? 'SearXNG' : 'LangSearch';
     
-    // Remove all color classes
-    searchDot.classList.remove('bg-green-500', 'bg-gray-500', 'bg-yellow-500', 'bg-red-500', 'animate-pulse-slow', 'status-dot', 'connected');
+    // Remove all status classes
+    searchDot.classList.remove('bg-green-500', 'bg-gray-500', 'bg-yellow-500', 'bg-red-500', 'animate-pulse', 'status-dot', 'idle', 'searching', 'ready');
+    // Add base classes
+    searchDot.classList.add('status-dot', 'w-2', 'h-2', 'rounded-full');
     
+    // Add the correct color class and status
+    const colorMap: Record<string, string> = {
+      'idle': 'bg-gray-500',
+      'searching': 'bg-yellow-500',
+      'ready': 'bg-green-500'
+    };
+    const colorClass = colorMap[status] || 'bg-gray-500';
+    searchDot.classList.add(colorClass, status);
+    
+    // Add animation for searching state
+    if (status === 'searching') {
+      searchDot.classList.add('animate-pulse');
+    } else {
+      searchDot.classList.remove('animate-pulse');
+    }
+    
+    // Update text
     switch (status) {
       case 'searching':
-        searchDot.classList.add('bg-yellow-500', 'animate-pulse-slow');
         searchText.textContent = `Search: ${provider}...`;
         break;
       case 'ready':
-        searchDot.classList.add('bg-green-500', 'status-dot', 'connected');
         searchText.textContent = `Search: ${provider}`;
         break;
       case 'idle':
       default:
-        searchDot.classList.add('bg-gray-500');
         searchText.textContent = `Search: ${provider}`;
         break;
     }
+    
+    // Add tooltip
+    searchText.setAttribute('title', `Search (${provider}): ${status}`);
   }
   
   private async searchWithLangSearch(query: string, silent: boolean = false): Promise<any[]> {
@@ -1036,8 +1063,10 @@ echo $! > /tmp/clay-bridge.pid
     const text = document.getElementById('webvm-text');
     
     if (dot) {
-      // Remove all background color classes
-      dot.classList.remove('bg-green-500', 'bg-gray-500', 'bg-yellow-500', 'bg-red-500');
+      // Remove all status classes
+      dot.classList.remove('bg-green-500', 'bg-gray-500', 'bg-yellow-500', 'bg-red-500', 'connected', 'disconnected', 'connecting', 'error', 'status-dot');
+      // Add base classes and status class
+      dot.classList.add('status-dot', 'w-2', 'h-2', 'rounded-full');
       // Add the correct color class
       const colorMap: Record<string, string> = {
         'connected': 'bg-green-500',
@@ -1045,10 +1074,19 @@ echo $! > /tmp/clay-bridge.pid
         'connecting': 'bg-yellow-500',
         'error': 'bg-red-500'
       };
-      dot.classList.add(colorMap[status] || 'bg-gray-500');
+      const colorClass = colorMap[status] || 'bg-gray-500';
+      dot.classList.add(colorClass, status);
+      
+      // Add animation for connecting state
+      if (status === 'connecting') {
+        dot.classList.add('animate-pulse');
+      } else {
+        dot.classList.remove('animate-pulse');
+      }
     }
     if (text) {
       text.textContent = 'WebVM';
+      text.setAttribute('title', `WebVM: ${status}`);
     }
   }
   
@@ -1058,8 +1096,10 @@ echo $! > /tmp/clay-bridge.pid
     const text = document.getElementById('websocket-text');
     
     if (dot) {
-      // Remove all background color classes
-      dot.classList.remove('bg-green-500', 'bg-gray-500', 'bg-yellow-500', 'bg-red-500');
+      // Remove all status classes
+      dot.classList.remove('bg-green-500', 'bg-gray-500', 'bg-yellow-500', 'bg-red-500', 'connected', 'disconnected', 'connecting', 'error', 'status-dot');
+      // Add base classes and status class
+      dot.classList.add('status-dot', 'w-2', 'h-2', 'rounded-full');
       // Add the correct color class
       const colorMap: Record<string, string> = {
         'connected': 'bg-green-500',
@@ -1067,10 +1107,19 @@ echo $! > /tmp/clay-bridge.pid
         'connecting': 'bg-yellow-500',
         'error': 'bg-red-500'
       };
-      dot.classList.add(colorMap[status] || 'bg-gray-500');
+      const colorClass = colorMap[status] || 'bg-gray-500';
+      dot.classList.add(colorClass, status);
+      
+      // Add animation for connecting state
+      if (status === 'connecting') {
+        dot.classList.add('animate-pulse');
+      } else {
+        dot.classList.remove('animate-pulse');
+      }
     }
     if (text) {
       text.textContent = 'WS';
+      text.setAttribute('title', `WebSocket: ${status}`);
     }
   }
   
@@ -1080,8 +1129,10 @@ echo $! > /tmp/clay-bridge.pid
     const text = document.getElementById('bridge-text');
     
     if (dot) {
-      // Remove all background color classes
-      dot.classList.remove('bg-green-500', 'bg-gray-500', 'bg-yellow-500', 'bg-red-500');
+      // Remove all status classes
+      dot.classList.remove('bg-green-500', 'bg-gray-500', 'bg-yellow-500', 'bg-red-500', 'connected', 'disconnected', 'connecting', 'error', 'status-dot');
+      // Add base classes and status class
+      dot.classList.add('status-dot', 'w-2', 'h-2', 'rounded-full');
       // Add the correct color class
       const colorMap: Record<string, string> = {
         'connected': 'bg-green-500',
@@ -1089,10 +1140,19 @@ echo $! > /tmp/clay-bridge.pid
         'connecting': 'bg-yellow-500',
         'error': 'bg-red-500'
       };
-      dot.classList.add(colorMap[status] || 'bg-gray-500');
+      const colorClass = colorMap[status] || 'bg-gray-500';
+      dot.classList.add(colorClass, status);
+      
+      // Add animation for connecting state
+      if (status === 'connecting') {
+        dot.classList.add('animate-pulse');
+      } else {
+        dot.classList.remove('animate-pulse');
+      }
     }
     if (text) {
       text.textContent = 'Bridge';
+      text.setAttribute('title', `Bridge: ${status}`);
     }
   }
 
@@ -1101,18 +1161,28 @@ echo $! > /tmp/clay-bridge.pid
     const text = document.getElementById('ai-text');
     
     if (dot) {
+      // Remove all status classes
+      dot.classList.remove('bg-green-500', 'bg-gray-500', 'bg-yellow-500', 'bg-red-500', 'ready', 'idle', 'thinking', 'error', 'status-dot', 'animate-pulse');
+      // Add base classes and status class
+      dot.classList.add('status-dot', 'w-2', 'h-2', 'rounded-full');
+      // Add the correct color class
       const statusMap: Record<string, string> = {
         'idle': 'bg-gray-500',
         'thinking': 'bg-yellow-500',
         'ready': 'bg-green-500',
         'error': 'bg-red-500'
       };
-      // Remove all color classes and add the correct one
-      dot.className = dot.className.replace(/bg-(green|gray|yellow|red)-500/g, '');
-      dot.className = `w-2 h-2 rounded-full ${statusMap[status] || 'bg-gray-500'}`;
+      const colorClass = statusMap[status] || 'bg-gray-500';
+      dot.classList.add(colorClass, status);
+      
+      // Add animation for thinking state
+      if (status === 'thinking') {
+        dot.classList.add('animate-pulse');
+      }
     }
     if (text) {
       text.textContent = 'AI';
+      text.setAttribute('title', `AI: ${status}`);
     }
   }
 
@@ -1809,7 +1879,7 @@ echo $! > /tmp/clay-bridge.pid
     });
   }
 
-  private async scanFilesystem(): Promise<void> {
+  public async scanFilesystem(): Promise<void> {
     if (this.isScanning) return;
     
     this.isScanning = true;
@@ -3396,6 +3466,31 @@ Note: This is a summary of the user's filesystem. Use this information to answer
       loading.classList.add('hidden');
     }
   }
+
+  /**
+   * Cleanup method to prevent memory leaks
+   */
+  public dispose(): void {
+    // Clear status bar interval
+    if (this.statusBarInterval) {
+      clearInterval(this.statusBarInterval);
+      this.statusBarInterval = null;
+    }
+    
+    // Dispose terminal
+    if (this.terminal) {
+      this.terminal.dispose();
+    }
+    
+    // Close backend connections
+    if (this.backend && 'disconnect' in this.backend) {
+      try {
+        (this.backend as any).disconnect();
+      } catch (e) {
+        // Ignore errors during cleanup
+      }
+    }
+  }
 }
 
 // SimpleAIAssistant has been replaced with WebLLM service
@@ -3462,14 +3557,26 @@ class UIBuilder {
     const closeBtn = document.createElement('span');
     closeBtn.className = 'control close';
     closeBtn.id = 'window-close';
+    closeBtn.setAttribute('role', 'button');
+    closeBtn.setAttribute('aria-label', 'Close window');
+    closeBtn.setAttribute('title', 'Close window');
+    closeBtn.setAttribute('tabindex', '0');
     
     const minimizeBtn = document.createElement('span');
     minimizeBtn.className = 'control minimize';
     minimizeBtn.id = 'window-minimize';
+    minimizeBtn.setAttribute('role', 'button');
+    minimizeBtn.setAttribute('aria-label', 'Minimize window');
+    minimizeBtn.setAttribute('title', 'Minimize window');
+    minimizeBtn.setAttribute('tabindex', '0');
     
     const maximizeBtn = document.createElement('span');
     maximizeBtn.className = 'control maximize';
     maximizeBtn.id = 'window-maximize';
+    maximizeBtn.setAttribute('role', 'button');
+    maximizeBtn.setAttribute('aria-label', 'Maximize window');
+    maximizeBtn.setAttribute('title', 'Maximize window');
+    maximizeBtn.setAttribute('tabindex', '0');
     
     controls.appendChild(closeBtn);
     controls.appendChild(minimizeBtn);
@@ -3542,10 +3649,14 @@ class UIBuilder {
     const item = document.createElement('div');
     item.className = 'status-item';
     item.id = itemId;
+    item.setAttribute('role', 'status');
+    item.setAttribute('aria-label', `${text} status`);
+    item.setAttribute('title', `${text} connection status`);
     
     const dot = document.createElement('span');
     dot.className = 'status-dot';
     dot.id = dotId;
+    dot.setAttribute('aria-hidden', 'true');
     
     const textSpan = document.createElement('span');
     textSpan.className = 'status-text';
@@ -3563,9 +3674,12 @@ class UIBuilder {
     btn.id = id;
     btn.className = id.replace('-btn', '-btn');
     btn.title = title;
+    btn.setAttribute('aria-label', title);
+    btn.setAttribute('type', 'button');
     
     const iconEl = document.createElement('i');
     iconEl.setAttribute('data-lucide', icon);
+    iconEl.setAttribute('aria-hidden', 'true');
     
     const textSpan = document.createElement('span');
     textSpan.textContent = text;
@@ -3915,21 +4029,21 @@ function renderLanding(): void {
       <div class="max-w-7xl mx-auto">
         <!-- Hero Section -->
         <div class="mb-8">
-          <h1 class="text-6xl md:text-7xl font-bold text-white mb-4 tracking-tight">
+          <h1 class="text-6xl md:text-7xl font-bold text-white mb-4 tracking-tight animate-fade-up">
             Professional Terminal
             <span class="block bg-gradient-to-r from-blue-400 to-orange-400 bg-clip-text text-transparent">for the Web</span>
       </h1>
-          <p class="text-xl text-gray-300 mb-8 max-w-3xl leading-relaxed">
+          <p class="text-xl text-gray-300 mb-8 max-w-3xl leading-relaxed animate-fade-up" style="animation-delay: 0.1s;">
         Clay gives you a powerful, AI-augmented terminal experience right in your browser. Full system access, tab completion, history search, and more.
       </p>
-          <div class="flex gap-4 flex-wrap">
-            <button id="open-terminal" class="px-8 py-4 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white rounded-xl font-semibold text-lg shadow-lg hover:shadow-xl transition-all transform hover:scale-[1.02] border border-blue-500/50">
+          <div class="flex gap-4 flex-wrap animate-fade-up" style="animation-delay: 0.2s;">
+            <button id="open-terminal" class="px-8 py-4 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white rounded-xl font-semibold text-lg shadow-lg hover:shadow-xl transition-all transform hover:scale-[1.02] active:scale-[0.98] border border-blue-500/50 focus:outline-none focus:ring-2 focus:ring-blue-500/50" aria-label="Open Terminal">
           Open Terminal
         </button>
-            <a href="https://www.npmjs.com/package/clay-util" target="_blank" class="px-8 py-4 glass hover:bg-white/5 text-white rounded-xl font-semibold text-lg transition-all transform hover:scale-[1.02]">
+            <a href="https://www.npmjs.com/package/clay-util" target="_blank" rel="noopener noreferrer" class="px-8 py-4 glass hover:bg-white/5 text-white rounded-xl font-semibold text-lg transition-all transform hover:scale-[1.02] active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-blue-500/50" aria-label="View Documentation">
           Documentation
         </a>
-            <button id="install-pwa-btn-hero" class="px-8 py-4 bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-500 hover:to-orange-600 text-white rounded-xl font-semibold text-lg shadow-lg hover:shadow-xl transition-all transform hover:scale-[1.02] border border-orange-500/50" style="display: none;">
+            <button id="install-pwa-btn-hero" class="px-8 py-4 bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-500 hover:to-orange-600 text-white rounded-xl font-semibold text-lg shadow-lg hover:shadow-xl transition-all transform hover:scale-[1.02] active:scale-[0.98] border border-orange-500/50 focus:outline-none focus:ring-2 focus:ring-orange-500/50" style="display: none;" aria-label="Install App">
           📱 Install App
         </button>
       </div>
@@ -4108,34 +4222,36 @@ function renderTerminalView(): void {
             </svg>
           </button>
       <nav class="flex-1 flex flex-col gap-4 w-full px-2">
-        <button class="sidebar-item active w-full p-3 rounded-lg flex items-center justify-center group relative" title="Terminal">
+        <button id="sidebar-terminal" class="sidebar-item active w-full p-3 rounded-lg flex items-center justify-center group relative" title="Terminal">
           <svg class="w-6 h-6 text-blue-400 group-hover:text-blue-300 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
           </svg>
         </button>
-        <button class="sidebar-item w-full p-3 rounded-lg flex items-center justify-center group relative" title="Settings">
-          <svg class="w-6 h-6 text-gray-400 group-hover:text-blue-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <button id="sidebar-settings" class="sidebar-item w-full p-3 rounded-lg flex items-center justify-center group relative" title="Settings" aria-label="Open ChromeOS Settings" type="button">
+          <svg class="w-6 h-6 text-gray-400 group-hover:text-blue-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-3.318 4.325-3.318 2.4 0 4.899 1.562 4.325 3.318m-1.455 4.315c-.426 1.756-1.924 2.318-4.325 2.318-2.4 0-3.899-.562-4.325-2.318m-1.455 4.315c.426 1.756 2.924 3.318 4.325 3.318 2.4 0 4.899-1.562 4.325-3.318m-1.455-4.315c-.426-1.756-1.924-2.318-4.325-2.318-2.4 0-3.899.562-4.325 2.318"/>
           </svg>
         </button>
-        <button class="sidebar-item w-full p-3 rounded-lg flex items-center justify-center group relative" title="Files">
-          <svg class="w-6 h-6 text-gray-400 group-hover:text-blue-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <button id="sidebar-files" class="sidebar-item w-full p-3 rounded-lg flex items-center justify-center group relative" title="Files" aria-label="Scan Filesystem" type="button">
+          <svg class="w-6 h-6 text-gray-400 group-hover:text-blue-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
           </svg>
         </button>
-        <button class="sidebar-item w-full p-3 rounded-lg flex items-center justify-center group relative" title="History">
-          <svg class="w-6 h-6 text-gray-400 group-hover:text-blue-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <button id="sidebar-history" class="sidebar-item w-full p-3 rounded-lg flex items-center justify-center group relative" title="History" aria-label="Command History" type="button">
+          <svg class="w-6 h-6 text-gray-400 group-hover:text-blue-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
           </svg>
         </button>
-        <button class="sidebar-item w-full p-3 rounded-lg flex items-center justify-center group relative" title="AI Assistant">
-          <svg class="w-6 h-6 text-gray-400 group-hover:text-orange-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <button id="sidebar-ai" class="sidebar-item w-full p-3 rounded-lg flex items-center justify-center group relative" title="AI Assistant" aria-label="AI Assistant Help" type="button">
+          <svg class="w-6 h-6 text-gray-400 group-hover:text-orange-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
           </svg>
         </button>
-        <div class="h-px bg-white/10 my-2"></div>
-        <button class="sidebar-item w-full p-3 rounded-lg flex items-center justify-center group relative" title="User Profile">
-          <div class="w-8 h-8 rounded-full bg-gradient-to-br from-blue-600 to-orange-600 flex items-center justify-center text-white font-semibold text-xs">JB</div>
+        <div class="h-px bg-white/10 my-2" role="separator" aria-hidden="true"></div>
+        <button id="sidebar-share" class="sidebar-item w-full p-3 rounded-lg flex items-center justify-center group relative" title="Share Session" aria-label="Share Terminal Session" type="button">
+          <svg class="w-6 h-6 text-gray-400 group-hover:text-blue-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/>
+          </svg>
         </button>
       </nav>
     </aside>
@@ -4177,17 +4293,17 @@ function renderTerminalView(): void {
             </div>
             </div>
         <div class="flex items-center gap-2">
-            <select id="model-select" class="px-3 py-1.5 glass rounded-lg text-xs font-medium cursor-pointer transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/50" style="border: 1px solid rgba(255, 255, 255, 0.1);">
+            <select id="model-select" class="px-3 py-1.5 glass rounded-lg text-xs font-medium cursor-pointer transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/50" style="border: 1px solid rgba(255, 255, 255, 0.1);" aria-label="Select AI model quantization">
               <option value="q4f16_1">JOSIEFIED Q4 (Fast)</option>
               <option value="q4f32_1">JOSIEFIED Q4 F32</option>
               <option value="q8f16_1">JOSIEFIED Q8 (Better)</option>
               <option value="f16">JOSIEFIED F16 (Best)</option>
           </select>
-            <button id="theme-toggle-terminal" class="p-2 rounded-lg glass hover:bg-white/5 transition-all">
-            <svg id="sun-icon-terminal" class="w-4 h-4 text-gray-400 dark:hidden" fill="currentColor" viewBox="0 0 20 20">
+            <button id="theme-toggle-terminal" class="p-2 rounded-lg glass hover:bg-white/5 transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/50" aria-label="Toggle theme" type="button" title="Toggle dark/light theme">
+            <svg id="sun-icon-terminal" class="w-4 h-4 text-gray-400 dark:hidden" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
               <path fill-rule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clip-rule="evenodd"/>
             </svg>
-            <svg id="moon-icon-terminal" class="w-4 h-4 text-gray-400 hidden dark:block" fill="currentColor" viewBox="0 0 20 20">
+            <svg id="moon-icon-terminal" class="w-4 h-4 text-gray-400 hidden dark:block" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
               <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/>
             </svg>
           </button>
@@ -4285,23 +4401,21 @@ function renderTerminalView(): void {
   if (sidebarShare) {
     sidebarShare.addEventListener('click', async () => {
       const terminal = (window as any).clayTerminal;
-      if (terminal && terminal.generateShareLink) {
-        const shareLink = terminal.generateShareLink();
-        if (shareLink) {
-          try {
-            await navigator.clipboard.writeText(shareLink);
-            notificationManager.success('Share link copied to clipboard!');
-            terminal.terminal.write(`\r\n\x1b[32m[Share]\x1b[0m Link copied: ${shareLink}\r\n`);
-            terminal.writePrompt();
-          } catch (error) {
-            notificationManager.error('Failed to copy share link');
-            terminal.terminal.write(`\r\n\x1b[31m[Error]\x1b[0m Failed to copy: ${error}\r\n`);
+      if (terminal && terminal.copyShareLink) {
+        try {
+          await terminal.copyShareLink();
+          notificationManager.success('Share link copied to clipboard!');
+        } catch (error: any) {
+          notificationManager.error('Failed to copy share link');
+          if (terminal.terminal) {
+            terminal.terminal.write(`\r\n\x1b[31m[Error]\x1b[0m Failed to copy: ${error?.message || error}\r\n`);
+            if (terminal.writePrompt) {
+              terminal.writePrompt();
+            }
           }
-        } else {
-          notificationManager.warning('No commands to share yet');
-          terminal.terminal.write(`\r\n\x1b[33m[Share]\x1b[0m No commands to share yet\r\n`);
-          terminal.writePrompt();
         }
+      } else {
+        notificationManager.warning('Terminal not ready');
       }
     });
   }

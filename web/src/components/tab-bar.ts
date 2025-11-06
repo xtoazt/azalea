@@ -34,6 +34,8 @@ class TabBar {
       </svg>
     `;
     addButton.title = 'New Tab (Ctrl+Shift+T)';
+    addButton.setAttribute('aria-label', 'Create new terminal tab');
+    addButton.setAttribute('type', 'button');
     addButton.addEventListener('click', () => {
       if (this.config) {
         this.config.onTabCreate();
@@ -93,11 +95,12 @@ class TabBar {
           border: 1px solid rgba(255, 255, 255, 0.1);
           border-radius: 0.5rem 0.5rem 0 0;
           cursor: pointer;
-          transition: all 0.2s;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
           min-width: 120px;
           max-width: 200px;
           position: relative;
           user-select: none;
+          animation: slideIn 0.2s ease-out;
         }
         
         .terminal-tab:hover {

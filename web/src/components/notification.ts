@@ -35,22 +35,44 @@ class NotificationManager {
           min-width: 300px;
           max-width: 500px;
           padding: 0.75rem 1rem;
-          border-radius: 0.5rem;
-          box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.1);
-          backdrop-filter: blur(12px);
-          -webkit-backdrop-filter: blur(12px);
+          border-radius: 0.75rem;
+          box-shadow: 
+            0 10px 25px rgba(0, 0, 0, 0.3), 
+            0 0 0 1px rgba(255, 255, 255, 0.1),
+            0 0 20px rgba(0, 0, 0, 0.1);
+          backdrop-filter: blur(16px) saturate(180%);
+          -webkit-backdrop-filter: blur(16px) saturate(180%);
           display: flex;
           align-items: center;
           gap: 0.75rem;
           pointer-events: auto;
-          animation: slideInRight 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          animation: slideInRight 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
           cursor: pointer;
-          transition: all 0.2s;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          position: relative;
+          overflow: hidden;
+        }
+        
+        .notification-toast::before {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, transparent 50%);
+          opacity: 0;
+          transition: opacity 0.3s;
+          pointer-events: none;
         }
         
         .notification-toast:hover {
-          transform: translateX(-4px);
-          box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.15);
+          transform: translateX(-4px) translateY(-1px);
+          box-shadow: 
+            0 12px 30px rgba(0, 0, 0, 0.4), 
+            0 0 0 1px rgba(255, 255, 255, 0.15),
+            0 0 30px rgba(0, 0, 0, 0.15);
+        }
+        
+        .notification-toast:hover::before {
+          opacity: 1;
         }
         
         .notification-toast.success {

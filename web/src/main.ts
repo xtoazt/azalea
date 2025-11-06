@@ -170,7 +170,14 @@ class ClayWebTerminal {
     (window as any).clayTerminal = this;
 
     // Wait for DOM to be ready before initializing
-    setTimeout(() => {
+    const init = () => {
+      const terminalElement = document.getElementById('terminal');
+      if (!terminalElement) {
+        // Retry if element not found
+        setTimeout(init, 50);
+        return;
+      }
+
       this.initializeTerminal();
       this.setupBackend();
       this.initializeStatusBar();
@@ -186,11 +193,17 @@ class ClayWebTerminal {
         (window as any).lucide.createIcons();
       }
       
-      // Hide loading overlay after a delay
+      // Hide loading overlay
       setTimeout(() => {
         this.hideLoading();
-      }, 1000);
-    }, 100);
+      }, 300);
+    };
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => setTimeout(init, 50));
+    } else {
+      setTimeout(init, 50);
+    }
   }
 
   private checkForShareLink(): void {
@@ -3214,6 +3227,14 @@ class UIBuilder {
     actions.appendChild(modelBtn);
     actions.appendChild(installBtn);
     
+    // Attach share button handler
+    shareBtn.addEventListener('click', () => {
+      const terminal = (window as any).clayTerminal;
+      if (terminal && terminal.handleShareCommand) {
+        terminal.handleShareCommand();
+      }
+    });
+    
     return actions;
   }
   
@@ -3516,13 +3537,13 @@ function renderLanding(): void {
 
   // Sidebar Navigation
   const sidebar = document.createElement('aside');
-  sidebar.className = 'sidebar w-20 flex flex-col items-center py-6 animate-slide-in relative z-10';
+  sidebar.className = 'sidebar w-20 flex flex-col items-center py-6 relative z-10';
   sidebar.innerHTML = `
-    <div class="mb-8">
-      <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-600 to-orange-600 flex items-center justify-center shadow-lg animate-glow-pulse">
-        <span class="text-white font-bold text-xl">C</span>
+      <div class="mb-8">
+        <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-600 to-orange-600 flex items-center justify-center shadow-lg">
+          <span class="text-white font-bold text-xl">C</span>
+        </div>
       </div>
-    </div>
     <nav class="flex-1 flex flex-col gap-4 w-full px-2">
       <button class="sidebar-item active w-full p-3 rounded-lg flex items-center justify-center group relative" title="Home">
         <svg class="w-6 h-6 text-blue-400 group-hover:text-blue-300 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -3558,7 +3579,7 @@ function renderLanding(): void {
   mainContent.className = 'flex-1 flex flex-col';
   mainContent.innerHTML = `
     <!-- Top Header -->
-    <header class="glass border-b border-white/10 px-8 py-6 animate-fade-in">
+    <header class="glass border-b border-white/10 px-8 py-6">
       <div class="flex items-center justify-between">
         <div>
           <h1 class="text-3xl font-bold text-white mb-1">Terminal Management</h1>
@@ -3593,7 +3614,7 @@ function renderLanding(): void {
     <main class="flex-1 p-8 overflow-y-auto">
       <div class="max-w-7xl mx-auto">
         <!-- Hero Section -->
-        <div class="mb-8 animate-fade-up">
+        <div class="mb-8">
           <h1 class="text-6xl md:text-7xl font-bold text-white mb-4 tracking-tight">
             Professional Terminal
             <span class="block bg-gradient-to-r from-blue-400 to-orange-400 bg-clip-text text-transparent">for the Web</span>
@@ -3602,13 +3623,13 @@ function renderLanding(): void {
             Clay gives you a powerful, AI-augmented terminal experience right in your browser. Full system access, tab completion, history search, and more.
           </p>
           <div class="flex gap-4 flex-wrap">
-            <button id="open-terminal" class="px-8 py-4 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white rounded-xl font-semibold text-lg shadow-2xl hover:shadow-blue-500/50 transition-all transform hover:scale-105 border border-blue-500/50 animate-stagger-1">
+            <button id="open-terminal" class="px-8 py-4 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white rounded-xl font-semibold text-lg shadow-lg hover:shadow-xl transition-all transform hover:scale-[1.02] border border-blue-500/50">
               Open Terminal
             </button>
-            <a href="https://www.npmjs.com/package/clay-util" target="_blank" class="px-8 py-4 glass card-glow-blue hover:bg-white/5 text-white rounded-xl font-semibold text-lg transition-all transform hover:scale-105 animate-stagger-2">
+            <a href="https://www.npmjs.com/package/clay-util" target="_blank" class="px-8 py-4 glass hover:bg-white/5 text-white rounded-xl font-semibold text-lg transition-all transform hover:scale-[1.02]">
               Documentation
             </a>
-            <button id="install-pwa-btn-hero" class="px-8 py-4 bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-500 hover:to-orange-600 text-white rounded-xl font-semibold text-lg shadow-2xl hover:shadow-orange-500/50 transition-all transform hover:scale-105 border border-orange-500/50 animate-stagger-3" style="display: none;">
+            <button id="install-pwa-btn-hero" class="px-8 py-4 bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-500 hover:to-orange-600 text-white rounded-xl font-semibold text-lg shadow-lg hover:shadow-xl transition-all transform hover:scale-[1.02] border border-orange-500/50" style="display: none;">
               📱 Install App
             </button>
           </div>
@@ -3617,7 +3638,7 @@ function renderLanding(): void {
         <!-- Dashboard Cards Grid -->
         <div class="grid gap-6 md:grid-cols-2 lg:grid-cols-3 mb-8">
           <!-- Clock Card -->
-          <div class="glass rounded-2xl p-6 card-glow-blue animate-stagger-1">
+          <div class="glass rounded-2xl p-6 card-glow-blue">
             <h2 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
               <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
@@ -3629,7 +3650,7 @@ function renderLanding(): void {
           </div>
 
           <!-- Terminal Stats Card -->
-          <div class="glass rounded-2xl p-6 card-glow-orange animate-stagger-2">
+          <div class="glass rounded-2xl p-6 card-glow-orange">
             <h2 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
               <svg class="w-5 h-5 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
@@ -3641,7 +3662,7 @@ function renderLanding(): void {
           </div>
 
           <!-- Features Card -->
-          <div class="glass rounded-2xl p-6 card-glow-blue animate-stagger-3 md:col-span-2 lg:col-span-1">
+          <div class="glass rounded-2xl p-6 card-glow-blue md:col-span-2 lg:col-span-1">
             <h2 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
               <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
@@ -3771,7 +3792,7 @@ function renderTerminalView(): void {
   layout.className = 'min-h-screen flex';
   layout.innerHTML = `
     <!-- Left Sidebar Navigation -->
-    <aside class="sidebar w-20 flex flex-col items-center py-6 animate-slide-in relative z-10">
+    <aside class="sidebar w-20 flex flex-col items-center py-6 relative z-10">
       <button id="back-home" class="mb-8 w-12 h-12 rounded-xl glass flex items-center justify-center group hover:bg-white/5 transition-all" title="Back to Dashboard">
         <svg class="w-6 h-6 text-gray-400 group-hover:text-blue-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
@@ -3813,7 +3834,7 @@ function renderTerminalView(): void {
     <!-- Main Content Area -->
     <div class="flex-1 flex flex-col">
       <!-- Compact Status Bar -->
-      <div id="status-bar" class="glass border-b border-white/10 px-6 py-3 animate-fade-in relative z-20">
+      <div id="status-bar" class="glass border-b border-white/10 px-6 py-3 relative z-20">
         <div class="flex items-center justify-between gap-4">
           <div class="flex items-center gap-3 flex-wrap">
             <!-- Status Indicators -->
@@ -3867,8 +3888,8 @@ function renderTerminalView(): void {
       
       <!-- Terminal Container -->
       <div class="flex-1 overflow-hidden p-6 relative">
-        <div class="absolute inset-0 bg-gradient-to-br from-blue-600/5 via-blue-500/5 to-orange-600/5 rounded-3xl blur-3xl"></div>
-        <div id="terminal" class="w-full h-full glass rounded-2xl shadow-2xl animate-fade-in relative z-10"></div>
+        <div class="absolute inset-0 bg-gradient-to-br from-blue-600/3 via-blue-500/3 to-orange-600/3 rounded-3xl blur-2xl"></div>
+        <div id="terminal" class="w-full h-full glass rounded-2xl shadow-xl relative z-10"></div>
       </div>
     </div>
   `;
@@ -3906,30 +3927,113 @@ function renderTerminalView(): void {
   }
 
   const back = document.getElementById('back-home') as HTMLButtonElement;
-  back.addEventListener('click', () => {
-    location.hash = '';
-    renderLanding();
-  });
+  if (back) {
+    back.addEventListener('click', () => {
+      location.hash = '';
+      renderLanding();
+    });
+  }
 
-  // Initialize terminal into #terminal
-  setTimeout(() => {
-    try {
-      const terminalElement = document.getElementById('terminal');
-      if (terminalElement) {
-        new ClayWebTerminal();
+  // Sidebar button handlers
+  const sidebarSettings = document.getElementById('sidebar-settings');
+  if (sidebarSettings) {
+    sidebarSettings.addEventListener('click', () => {
+      settingsUnlockerUI.open();
+      notificationManager.info('Opening ChromeOS Settings');
+    });
+  }
+
+  const sidebarFiles = document.getElementById('sidebar-files');
+  if (sidebarFiles) {
+    sidebarFiles.addEventListener('click', () => {
+      const terminal = (window as any).clayTerminal;
+      if (terminal && terminal.scanFilesystem) {
+        terminal.scanFilesystem();
       } else {
-        console.error('Terminal element not found');
-        setTimeout(() => {
-          const retryElement = document.getElementById('terminal');
-          if (retryElement) {
-            new ClayWebTerminal();
-          }
-        }, 200);
+        notificationManager.info('Use the Scan Files button to scan your filesystem');
       }
-    } catch (e) {
-      console.error('Failed to initialize terminal:', e);
+    });
+  }
+
+  const sidebarHistory = document.getElementById('sidebar-history');
+  if (sidebarHistory) {
+    sidebarHistory.addEventListener('click', () => {
+      const terminal = (window as any).clayTerminal;
+      if (terminal) {
+        terminal.terminal.write('\r\n\x1b[36m[History]\x1b[0m Press Ctrl+R to search command history\r\n');
+      }
+    });
+  }
+
+  const sidebarAI = document.getElementById('sidebar-ai');
+  if (sidebarAI) {
+    sidebarAI.addEventListener('click', () => {
+      const terminal = (window as any).clayTerminal;
+      if (terminal) {
+        terminal.terminal.write('\r\n\x1b[36m[AI]\x1b[0m Type @ai followed by your question to chat with AI\r\n');
+        if (terminal.writePrompt) {
+          terminal.writePrompt();
+        }
+      }
+    });
+  }
+
+  const sidebarShare = document.getElementById('sidebar-share');
+  if (sidebarShare) {
+    sidebarShare.addEventListener('click', async () => {
+      const terminal = (window as any).clayTerminal;
+      if (terminal && terminal.generateShareLink) {
+        const shareLink = terminal.generateShareLink();
+        if (shareLink) {
+          try {
+            await navigator.clipboard.writeText(shareLink);
+            notificationManager.success('Share link copied to clipboard!');
+            terminal.terminal.write(`\r\n\x1b[32m[Share]\x1b[0m Link copied: ${shareLink}\r\n`);
+            terminal.writePrompt();
+          } catch (error) {
+            notificationManager.error('Failed to copy share link');
+            terminal.terminal.write(`\r\n\x1b[31m[Error]\x1b[0m Failed to copy: ${error}\r\n`);
+          }
+        } else {
+          notificationManager.warning('No commands to share yet');
+          terminal.terminal.write(`\r\n\x1b[33m[Share]\x1b[0m No commands to share yet\r\n`);
+          terminal.writePrompt();
+        }
+      }
+    });
+  }
+
+  // Initialize terminal into #terminal - ensure DOM is ready
+  const initTerminal = () => {
+    const terminalElement = document.getElementById('terminal');
+    if (terminalElement && terminalElement.offsetParent !== null) {
+      try {
+        new ClayWebTerminal();
+      } catch (e) {
+        console.error('Failed to initialize terminal:', e);
+        // Retry once after a delay
+        setTimeout(() => {
+          try {
+            new ClayWebTerminal();
+          } catch (e2) {
+            console.error('Retry failed:', e2);
+          }
+        }, 500);
+      }
+    } else {
+      // Retry if element not ready
+      setTimeout(initTerminal, 100);
     }
-  }, 100);
+  };
+  
+  // Use requestAnimationFrame to ensure DOM is fully rendered
+  if (document.readyState === 'complete') {
+    setTimeout(initTerminal, 100);
+  } else {
+    window.addEventListener('load', () => {
+      setTimeout(initTerminal, 100);
+    });
+  }
 }
 
 function route() {

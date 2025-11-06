@@ -18,6 +18,7 @@ import { tabBar } from './components/tab-bar';
 import { TerminalTab } from './types/terminal';
 import { getWebLLMService } from './backend-webllm';
 import { settingsUnlockerUI } from './components/settings-unlocker';
+import { getGlobalAIService, chatWithAI, isAIReady } from './standalone-ai';
 import './app.css';
 
 // Helper to get hostname (fallback for browser)
@@ -149,18 +150,21 @@ class ClayWebTerminal {
     this.terminal.loadAddon(this.imageAddon);
     this.terminal.loadAddon(this.ligaturesAddon);
 
-    // AI Assistant - Initialize WebLLM with JOSIEFIED model
-    try {
+    // AI Assistant - Use global standalone AI service (always available)
+    // This ensures AI works even if terminal fails
+    // Initialize asynchronously (don't block startup)
+    getGlobalAIService().then(aiService => {
+      this.aiAssistant = aiService;
+    }).catch(() => {
+      // If global service fails, try local instance
       this.aiAssistant = getWebLLMService();
-      // Initialize asynchronously (don't block startup)
-      this.aiAssistant.initialize().catch(error => {
-        console.error('Failed to initialize WebLLM:', error);
-        notificationManager.warning('WebLLM initialization failed. AI features will be available after model loads.');
-      });
-    } catch (error) {
-      console.error('Failed to create WebLLM service:', error);
-      this.aiAssistant = null;
-    }
+      if (this.aiAssistant && !this.aiAssistant.isReady()) {
+        this.aiAssistant.initialize().catch(error => {
+          console.error('Failed to initialize WebLLM:', error);
+          // AI will still be accessible via global service
+        });
+      }
+    });
     
     this.isChromeOS = isChromeOS();
     
@@ -1944,13 +1948,10 @@ echo $! > /tmp/clay-bridge.pid
         
         if (!isHealthy) {
           // Bridge not running, try to auto-start it
-          this.terminal.write('\r\n\x1b[33m[INFO]\x1b[0m Bridge server not running. Attempting to start...\r\n');
-          
           try {
             await this.autoStartBridgeOnChromeOS();
             
             // Wait a moment for server to start
-            this.terminal.write(`\x1b[33m[INFO]\x1b[0m Waiting for bridge to start...\r\n`);
             await new Promise(resolve => setTimeout(resolve, 3000));
             
             // Check again
@@ -1962,12 +1963,13 @@ echo $! > /tmp/clay-bridge.pid
                 'The bridge server needs to be started manually from the Linux terminal.\n' +
                 'See the diagnostics and steps below to fix this.'
               );
-              return;
+              // Continue to WebVM fallback
             } else {
-              this.terminal.write(`\x1b[32m[SUCCESS]\x1b[0m Bridge server started successfully!\r\n`);
+              // Successfully started, proceed to connect
             }
           } catch (autoStartError: any) {
-            // Auto-start failed, show detailed error
+            // Auto-start failed, show detailed error but continue to fallback
+            console.warn('[ChromeOS] Auto-start failed:', autoStartError);
             await this.showBridgeStartupError(
               `Auto-start failed: ${autoStartError.message}\n\n` +
               'This usually means:\n' +
@@ -1975,34 +1977,20 @@ echo $! > /tmp/clay-bridge.pid
               '2. The bridge directory does not exist\n' +
               '3. Dependencies are not installed\n' +
               '4. The bridge server failed to start\n\n' +
-              'Please follow the steps below to start the bridge manually.'
+              'Continuing with WebVM mode. Please start the bridge manually.'
             );
-            return;
           }
         }
       } catch (error: any) {
-        console.error('[ERROR] Bridge startup check failed:', error);
-        
-        // Provide more specific error message
-        let errorMsg = `Failed to check bridge status: ${error.message}`;
-        
-        if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-          errorMsg = 'Cannot connect to bridge server. This means:\n' +
-                     '1. The bridge server is not running\n' +
-                     '2. The bridge server is not installed\n' +
-                     '3. There may be a network/firewall issue\n\n' +
-                     'Please start the bridge manually following the steps below.';
-        }
-        
-        await this.showBridgeStartupError(errorMsg);
-        return;
+        console.warn('[ChromeOS] Bridge check failed, falling back to WebVM:', error);
+        // Continue to fallback on ChromeOS too if bridge fails
       }
     }
     
-    // Always try to connect to bridge first (works on any platform, not just ChromeOS)
-    const bridge = new BridgeBackend();
-    
+    // Try to connect to bridge first (works on any platform)
+    let bridgeConnected = false;
     try {
+      const bridge = new BridgeBackend();
       const isHealthy = await bridge.healthCheck();
       if (isHealthy) {
         console.log('[INFO] Bridge server found, using real system access');
@@ -2014,84 +2002,131 @@ echo $! > /tmp/clay-bridge.pid
         // Actually connect to the WebSocket
         try {
           await this.setupBackend();
+          bridgeConnected = true;
           
-          // Check for Linux Files access
-          const linuxFilesPath = await this.checkLinuxFilesAccess();
-          if (linuxFilesPath) {
-            this.terminal.write(`\r\n\x1b[32m[INFO]\x1b[0m Linux Files access detected: ${linuxFilesPath}\r\n`);
-            this.terminal.write(`\x1b[33m[INFO]\x1b[0m Files will be saved to Linux Files folder when possible.\r\n`);
+          // Check for Linux Files access (ChromeOS specific)
+          if (this.isChromeOS) {
+            const linuxFilesPath = await this.checkLinuxFilesAccess();
+            if (linuxFilesPath) {
+              this.terminal.write(`\r\n\x1b[32m[INFO]\x1b[0m Linux Files access detected: ${linuxFilesPath}\r\n`);
+              this.terminal.write(`\x1b[33m[INFO]\x1b[0m Files will be saved to Linux Files folder when possible.\r\n`);
+            }
           }
-        } catch (connectError) {
+        } catch (connectError: any) {
           console.error('[ERROR] Failed to connect to bridge WebSocket:', connectError);
           this.updateBridgeStatus('error');
           this.updateWebSocketStatus('error');
+          bridgeConnected = false;
           
-          // Show error popup on ChromeOS
+          // On ChromeOS, show error but continue to retry
           if (this.isChromeOS) {
-            await this.showBridgeStartupError(`WebSocket connection failed: ${connectError}`);
+            console.warn('[ChromeOS] Bridge connection failed, will retry in background');
           }
-          
-          // Fall through to retry logic
-          throw connectError;
         }
-        
-        return;
       }
     } catch (error) {
-      console.log('[INFO] Bridge server not available, will retry...', error);
+      console.log('[INFO] Bridge server not available, using WebVM fallback');
+      bridgeConnected = false;
     }
     
-    // If bridge not available, try to connect in background
-    this.updateBridgeStatus('disconnected');
-    this.updateWebSocketStatus('disconnected');
-    
-    // Try connecting every 3 seconds (more aggressive on ChromeOS)
-    const bridgeRetryInterval = setInterval(async () => {
-      if (!this.useBridge || !this.isConnected) {
-        try {
-          const bridge = new BridgeBackend();
-          const isHealthy = await bridge.healthCheck();
-          if (isHealthy) {
-            console.log('[INFO] Bridge server found, switching to real system access');
-            this.backend = bridge;
-            this.useBridge = true;
-            this.updateBridgeStatus('connecting');
-            this.updateWebSocketStatus('connecting');
-            
-            try {
+    // If bridge connected successfully, set up background retry for reconnection
+    if (bridgeConnected) {
+      // Set up background retry in case connection drops
+      setInterval(async () => {
+        if (!this.isConnected && this.useBridge) {
+          try {
+            const bridge = new BridgeBackend();
+            const isHealthy = await bridge.healthCheck();
+            if (isHealthy && !this.isConnected) {
+              console.log('[INFO] Reconnecting to bridge...');
+              this.backend = bridge;
               await this.setupBackend();
+            }
+          } catch (error) {
+            // Silent retry
+          }
+        }
+      }, 5000);
+      return;
+    }
+    
+    // Fallback to WebVM (works on all platforms, including ChromeOS if bridge fails)
+    try {
+      this.backend = new WebWorkerBackendWrapper();
+      this.useBridge = false;
+      this.updateBridgeStatus('disconnected');
+      this.updateWebSocketStatus('disconnected');
+      this.updateWebVMStatus('connecting');
+      
+      // Initialize WebVM backend (connect)
+      await this.backend.connect();
+      
+      // Update status
+      this.updateWebVMStatus('connected');
+      
+      // Show helpful message
+      const platformMsg = this.isChromeOS 
+        ? '\x1b[33m[INFO]\x1b[0m Running in WebVM mode (bridge not available)\r\n'
+        : '\x1b[36m[INFO]\x1b[0m Running in WebVM mode (browser-based)\r\n';
+      
+      this.terminal.write(`\r\n${platformMsg}`);
+      this.terminal.write('\x1b[33m[INFO]\x1b[0m Available commands: ls, cd, pwd, echo, cat, clear, help, @ai\r\n');
+      this.terminal.write('\x1b[32m[INFO]\x1b[0m AI Assistant (@ai) is always available!\r\n');
+      
+      if (!this.isChromeOS) {
+        this.terminal.write('\x1b[33m[INFO]\x1b[0m To enable full system commands, start the bridge server:\r\n');
+        this.terminal.write('\x1b[36m[INFO]\x1b[0m   cd bridge && npm install && npm start\r\n');
+        this.terminal.write('\x1b[33m[INFO]\x1b[0m The terminal will auto-connect when bridge is available.\r\n');
+      } else {
+        this.terminal.write('\x1b[33m[INFO]\x1b[0m The terminal will auto-connect to bridge when available.\r\n');
+      }
+      
+      // Set up background retry for bridge connection (especially on ChromeOS)
+      const bridgeRetryInterval = setInterval(async () => {
+        if (!this.useBridge) {
+          try {
+            const bridge = new BridgeBackend();
+            const isHealthy = await bridge.healthCheck();
+            if (isHealthy) {
+              console.log('[INFO] Bridge server found, switching from WebVM to real system');
               clearInterval(bridgeRetryInterval);
               
-              // Show message to user
-              this.terminal.write('\r\n\x1b[32m[INFO]\x1b[0m Connected to real system terminal!\r\n');
-              this.terminal.write('\x1b[33m[INFO]\x1b[0m All commands now execute on your system.\r\n');
-              this.writePrompt();
-            } catch (connectError) {
-              console.error('[ERROR] Failed to connect WebSocket:', connectError);
-              this.updateBridgeStatus('error');
-              this.updateWebSocketStatus('error');
+              this.backend = bridge;
+              this.useBridge = true;
+              this.updateBridgeStatus('connecting');
+              this.updateWebSocketStatus('connecting');
+              this.updateWebVMStatus('disconnected');
+              
+              try {
+                await this.setupBackend();
+                this.terminal.write('\r\n\x1b[32m[INFO]\x1b[0m Connected to real system terminal!\r\n');
+                this.terminal.write('\x1b[33m[INFO]\x1b[0m All commands now execute on your system.\r\n');
+                this.writePrompt();
+              } catch (connectError) {
+                console.error('[ERROR] Failed to connect WebSocket:', connectError);
+                this.updateBridgeStatus('error');
+                this.updateWebSocketStatus('error');
+                // Fall back to WebVM
+                this.backend = new WebWorkerBackendWrapper();
+                this.useBridge = false;
+                await this.backend.connect();
+                this.updateWebVMStatus('connected');
+              }
             }
+          } catch (error) {
+            // Continue with WebVM
           }
-        } catch (error) {
-          // Continue trying
+        } else {
+          clearInterval(bridgeRetryInterval);
         }
-      } else {
-        clearInterval(bridgeRetryInterval);
-      }
-    }, 3000);
-    
-    // Fallback to Web Worker (browser-only, limited commands)
-    this.backend = new WebWorkerBackendWrapper();
-    this.useBridge = false;
-    this.updateWebVMStatus('connecting');
-    
-    // Show helpful message about available commands
-    this.terminal.write('\r\n\x1b[36m[INFO]\x1b[0m Running in browser mode\r\n');
-    this.terminal.write('\x1b[33m[INFO]\x1b[0m Available commands: ls, cd, pwd, echo, cat, clear, help, @ai\r\n');
-    this.terminal.write('\x1b[33m[INFO]\x1b[0m AI Assistant (@ai) is always available!\r\n');
-    this.terminal.write('\x1b[33m[INFO]\x1b[0m To enable full system commands, start the bridge server:\r\n');
-    this.terminal.write('\x1b[36m[INFO]\x1b[0m   cd bridge && npm install && npm start\r\n');
-    this.terminal.write('\x1b[33m[INFO]\x1b[0m The terminal will auto-connect when bridge is available.\r\n');
+      }, this.isChromeOS ? 2000 : 5000); // More frequent on ChromeOS
+      
+    } catch (error: any) {
+      console.error('[ERROR] WebVM initialization failed:', error);
+      this.updateWebVMStatus('error');
+      this.terminal.write(`\r\n\x1b[31m[ERROR]\x1b[0m Failed to initialize terminal backend: ${error.message}\r\n`);
+      this.terminal.write('\x1b[33m[INFO]\x1b[0m AI Assistant (@ai) is still available!\r\n');
+    }
   }
 
   private async setupBackend(): Promise<void> {
@@ -2512,15 +2547,19 @@ echo $! > /tmp/clay-bridge.pid
     if (command.startsWith('@ai ')) {
       const question = command.substring(4).trim();
       
-      // Ensure AI assistant is always available
-      if (!this.aiAssistant) {
+      // Ensure AI assistant is always available (use global service)
+      if (!this.aiAssistant || !this.aiAssistant.isReady()) {
         try {
-          this.aiAssistant = getWebLLMService();
-          await this.aiAssistant.initialize();
+          this.aiAssistant = await getGlobalAIService();
         } catch (error) {
-          this.terminal.write(`\r\n\x1b[31m[ERROR]\x1b[0m Failed to initialize AI assistant: ${error}\r\n`);
-          this.writePrompt();
-          return;
+          try {
+            this.aiAssistant = getWebLLMService();
+            await this.aiAssistant.initialize();
+          } catch (initError) {
+            this.terminal.write(`\r\n\x1b[31m[ERROR]\x1b[0m Failed to initialize AI assistant: ${initError}\r\n`);
+            this.writePrompt();
+            return;
+          }
         }
       }
       
@@ -2695,7 +2734,15 @@ echo $! > /tmp/clay-bridge.pid
     this.updateAIStatus('thinking');
     this.terminal.write(`\r\n\x1b[36m[AI]\x1b[0m Auto-fixing error...\r\n`);
     
-    if (!this.aiAssistant) {
+    // Use global AI service
+    let aiService: ReturnType<typeof getWebLLMService> | null = null;
+    try {
+      aiService = await getGlobalAIService();
+    } catch (error) {
+      aiService = this.aiAssistant || getWebLLMService();
+    }
+    
+    if (!aiService) {
       this.terminal.write(`\x1b[31m[AI ERROR]\x1b[0m AI assistant not available\r\n`);
       this.aiExecuting = false;
       this.updateAIStatus('error');
@@ -2703,6 +2750,11 @@ echo $! > /tmp/clay-bridge.pid
     }
 
     try {
+      // Ensure AI is ready
+      if (!aiService.isReady()) {
+        await aiService.initialize();
+      }
+      
       // Generate fix command using AI chat instead of quickFix
       const fixPrompt = `The command "${this.lastError.command}" failed with error:\n${this.lastError.output}\n\nProvide a command to fix this error. Only output the command, no explanations.`;
       const messages = [
@@ -2710,7 +2762,7 @@ echo $! > /tmp/clay-bridge.pid
       ];
       
       let fixCommand = '';
-      await this.aiAssistant.chat(messages, (text) => {
+      await aiService.chat(messages, (text) => {
         fixCommand = text;
       });
       
@@ -2746,13 +2798,26 @@ echo $! > /tmp/clay-bridge.pid
     this.updateAIStatus('thinking');
     this.terminal.write(`\r\n\x1b[36m[AI]\x1b[0m Diagnosing error...\r\n`);
     
-    if (!this.aiAssistant) {
+    // Use global AI service
+    let aiService: ReturnType<typeof getWebLLMService> | null = null;
+    try {
+      aiService = await getGlobalAIService();
+    } catch (error) {
+      aiService = this.aiAssistant || getWebLLMService();
+    }
+    
+    if (!aiService) {
       this.terminal.write(`\x1b[31m[AI ERROR]\x1b[0m AI assistant not available\r\n`);
       this.writePrompt();
       return;
     }
 
     try {
+      // Ensure AI is ready
+      if (!aiService.isReady()) {
+        await aiService.initialize();
+      }
+      
       // Generate fix command using AI chat instead of quickFix
       const fixPrompt = `The command "${this.lastError.command}" failed with error:\n${this.lastError.output}\n\nProvide a command to fix this error. Only output the command, no explanations.`;
       const messages = [
@@ -2760,7 +2825,7 @@ echo $! > /tmp/clay-bridge.pid
       ];
       
       let fixCommand = '';
-      await this.aiAssistant.chat(messages, (text) => {
+      await aiService.chat(messages, (text) => {
         fixCommand = text;
       });
       
@@ -2789,29 +2854,37 @@ echo $! > /tmp/clay-bridge.pid
   }
 
   private async handleAICommand(question: string): Promise<void> {
-    // Ensure AI assistant is initialized
-    if (!this.aiAssistant) {
+    // Always use global AI service (works even if terminal backend fails)
+    let aiService = this.aiAssistant;
+    
+    if (!aiService || !aiService.isReady()) {
       try {
-        this.aiAssistant = getWebLLMService();
-        await this.aiAssistant.initialize();
+        // Try to get global AI service first (most reliable)
+        aiService = await getGlobalAIService();
+        this.aiAssistant = aiService; // Cache it
       } catch (error) {
-        this.terminal.write(`\r\n\x1b[31m[ERROR]\x1b[0m WebLLM initialization failed: ${error instanceof Error ? error.message : 'Unknown error'}\r\n`);
-        this.terminal.write(`\x1b[33m[INFO]\x1b[0m The JOSIEFIED model is loading. This may take a few moments on first use.\r\n`);
-        this.writePrompt();
-        return;
+        // If global service fails, try local instance
+        try {
+          aiService = getWebLLMService();
+          if (!aiService.isReady()) {
+            this.terminal.write(`\r\n\x1b[36m[AI]\x1b[0m Initializing JOSIEFIED model (this may take a moment)...\r\n`);
+            await aiService.initialize();
+          }
+          this.aiAssistant = aiService;
+        } catch (initError) {
+          this.terminal.write(`\r\n\x1b[31m[ERROR]\x1b[0m AI initialization failed: ${initError instanceof Error ? initError.message : 'Unknown error'}\r\n`);
+          this.terminal.write(`\x1b[33m[INFO]\x1b[0m The JOSIEFIED model is loading. This may take a few moments on first use.\r\n`);
+          this.writePrompt();
+          return;
+        }
       }
     }
-
-    // Ensure model is ready
-    if (!this.aiAssistant.isReady()) {
-      this.terminal.write(`\r\n\x1b[36m[AI]\x1b[0m Initializing JOSIEFIED model (this may take a moment)...\r\n`);
-      try {
-        await this.aiAssistant.initialize();
-      } catch (error) {
-        this.terminal.write(`\r\n\x1b[31m[ERROR]\x1b[0m Failed to initialize model: ${error instanceof Error ? error.message : 'Unknown error'}\r\n`);
-        this.writePrompt();
-        return;
-      }
+    
+    // Ensure we have a valid AI service
+    if (!aiService) {
+      this.terminal.write(`\r\n\x1b[31m[ERROR]\x1b[0m AI service not available\r\n`);
+      this.writePrompt();
+      return;
     }
     
     this.aiExecuting = true;
@@ -2855,7 +2928,7 @@ echo $! > /tmp/clay-bridge.pid
         ];
         
         let response = '';
-        await this.aiAssistant.chat(messages, (text) => {
+        await aiService.chat(messages, (text) => {
           // Stream response to terminal
           response = text;
           // Update in real-time if needed
@@ -2893,7 +2966,7 @@ echo $! > /tmp/clay-bridge.pid
         ];
         
         let response = '';
-        await this.aiAssistant.chat(messages, (text) => {
+        await aiService.chat(messages, (text) => {
           // Stream response to terminal
           response = text;
         });

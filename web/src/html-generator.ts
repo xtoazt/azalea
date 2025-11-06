@@ -22,8 +22,8 @@ export function generateHTML(): string {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#1e1e2e">
-  <meta name="description" content="Clay Terminal - The best terminal experience in your browser">
-  <title>Clay Terminal</title>
+  <meta name="description" content="Clay Terminal - Take Control of your Chromebook. Unlock 65+ hidden settings and full system access.">
+  <title>Clay Terminal - Take Control of your Chromebook</title>
   <link rel="manifest" href="${base}manifest.webmanifest">
   <link rel="apple-touch-icon" href="${base}apple-touch-icon.png">
 </head>

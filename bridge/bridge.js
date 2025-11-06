@@ -726,55 +726,324 @@ app.get('/api/chromeos/settings/status', async (req, res) => {
   }
 });
 
+app.get('/api/chromeos/settings/verify/:settingId', async (req, res) => {
+  try {
+    const { settingId } = req.params;
+    const verified = await settingsUnlocker.verifySetting(settingId);
+    res.json({ success: true, verified, settingId });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 app.post('/api/chromeos/settings/toggle', async (req, res) => {
-  const { setting } = req.body;
+  const { setting, flag, feature, enabled } = req.body;
   
-  if (!setting) {
-    return res.status(400).json({ error: 'Setting ID is required' });
+  if (!setting && !flag && !feature) {
+    return res.status(400).json({ error: 'Setting ID, flag, or feature is required' });
   }
   
   try {
     let result = false;
-    let enabled = false;
+    let isEnabled = false;
     
-    switch (setting) {
-      case 'linux-env':
-        result = await settingsUnlocker.enableLinuxEnvironment();
-        enabled = result;
-        break;
-      case 'adb':
-        result = await settingsUnlocker.enableADB();
-        enabled = result;
-        break;
-      case 'guest-mode':
-        result = await settingsUnlocker.enableGuestMode();
-        enabled = result;
-        break;
-      case 'developer-mode':
-        result = await settingsUnlocker.enableDeveloperMode();
-        enabled = result;
-        break;
-      case 'user-accounts':
-        result = await settingsUnlocker.enableUserAccountManagement();
-        enabled = result;
-        break;
-      case 'developer-features':
-        result = await settingsUnlocker.enableAllDeveloperFeatures();
-        enabled = result;
-        break;
-      case 'bypass-enrollment':
-        result = await settingsUnlocker.bypassEnrollment();
-        enabled = result;
-        break;
-      case 'all-settings':
-        result = await settingsUnlocker.enableAllSettings();
-        enabled = result;
-        break;
-      default:
-        return res.status(400).json({ error: 'Unknown setting' });
+    // Handle Chrome flag enabling
+    if (flag) {
+      result = await settingsUnlocker.enableChromeFlag(flag, enabled || 'enabled');
+      isEnabled = result;
+    }
+    // Handle Chrome feature enabling
+    else if (feature) {
+      result = await settingsUnlocker.enableChromeFeature(feature, enabled !== false);
+      isEnabled = result;
+    }
+    // Handle standard settings
+    else {
+      switch (setting) {
+        case 'linux-env':
+          result = await settingsUnlocker.enableLinuxEnvironment();
+          isEnabled = result;
+          break;
+        case 'adb':
+          result = await settingsUnlocker.enableADB();
+          isEnabled = result;
+          break;
+        case 'guest-mode':
+          result = await settingsUnlocker.enableGuestMode();
+          isEnabled = result;
+          break;
+        case 'developer-mode':
+          result = await settingsUnlocker.enableDeveloperMode();
+          isEnabled = result;
+          break;
+        case 'user-accounts':
+          result = await settingsUnlocker.enableUserAccountManagement();
+          isEnabled = result;
+          break;
+        case 'developer-features':
+          result = await settingsUnlocker.enableAllDeveloperFeatures();
+          isEnabled = result;
+          break;
+        case 'bypass-enrollment':
+          result = await settingsUnlocker.bypassEnrollment();
+          isEnabled = result;
+          break;
+        case 'network-sharing':
+          result = await settingsUnlocker.enableNetworkSharing();
+          isEnabled = result;
+          break;
+        case 'remote-desktop':
+          result = await settingsUnlocker.enableRemoteDesktop();
+          isEnabled = result;
+          break;
+        case 'screen-sharing':
+          result = await settingsUnlocker.enableScreenSharing();
+          isEnabled = result;
+          break;
+        case 'usb-devices':
+          result = await settingsUnlocker.enableUSBDevices();
+          isEnabled = result;
+          break;
+        case 'bluetooth':
+          result = await settingsUnlocker.enableBluetooth();
+          isEnabled = result;
+          break;
+        case 'filesystem-access':
+          result = await settingsUnlocker.enableFileSystemAccess();
+          isEnabled = result;
+          break;
+        case 'update-control':
+          result = await settingsUnlocker.enableUpdateControl();
+          isEnabled = result;
+          break;
+        case 'accessibility':
+          result = await settingsUnlocker.enableAccessibility();
+          isEnabled = result;
+          break;
+        case 'app-permissions':
+          result = await settingsUnlocker.enableAppPermissions();
+          isEnabled = result;
+          break;
+        case 'clipboard-access':
+          result = await settingsUnlocker.enableClipboardAccess();
+          isEnabled = result;
+          break;
+        case 'display-control':
+          result = await settingsUnlocker.enableDisplayControl();
+          isEnabled = result;
+          break;
+        case 'power-management':
+          result = await settingsUnlocker.enablePowerManagement();
+          isEnabled = result;
+          break;
+        case 'audio-control':
+          result = await settingsUnlocker.enableAudioControl();
+          isEnabled = result;
+          break;
+        case 'security-bypass':
+          result = await settingsUnlocker.enableSecurityBypass();
+          isEnabled = result;
+          break;
+        case 'root-access':
+          result = await settingsUnlocker.enableRootAccess();
+          isEnabled = result;
+          break;
+        case 'full-system-access':
+          result = await settingsUnlocker.enableFullSystemAccess();
+          isEnabled = result;
+          break;
+        case 'kernel-modules':
+          result = await settingsUnlocker.enableKernelModules();
+          isEnabled = result;
+          break;
+        case 'firewall-bypass':
+          result = await settingsUnlocker.enableFirewallBypass();
+          isEnabled = result;
+          break;
+        case 'all-network-ports':
+          result = await settingsUnlocker.enableAllNetworkPorts();
+          isEnabled = result;
+          break;
+        case 'all-extensions':
+          result = await settingsUnlocker.enableAllExtensions();
+          isEnabled = result;
+          break;
+        case 'all-storage':
+          result = await settingsUnlocker.enableAllStorage();
+          isEnabled = result;
+          break;
+        case 'all-web-apis':
+          result = await settingsUnlocker.enableAllWebAPIs();
+          isEnabled = result;
+          break;
+        case 'experimental-features':
+          result = await settingsUnlocker.enableAllExperimentalFeatures();
+          isEnabled = result;
+          break;
+        case 'enterprise-bypasses':
+          result = await settingsUnlocker.enableAllEnterpriseBypasses();
+          isEnabled = result;
+          break;
+        case 'content-filter-bypass':
+          result = await settingsUnlocker.enableContentFilterBypass();
+          isEnabled = result;
+          break;
+        case 'parental-controls-bypass':
+          result = await settingsUnlocker.enableParentalControlsBypass();
+          isEnabled = result;
+          break;
+        case 'privacy-bypass':
+          result = await settingsUnlocker.enablePrivacyBypass();
+          isEnabled = result;
+          break;
+        case 'developer-tools':
+          result = await settingsUnlocker.enableAllDeveloperTools();
+          isEnabled = result;
+          break;
+        case 'all-debugging':
+          result = await settingsUnlocker.enableAllDebugging();
+          isEnabled = result;
+          break;
+        case 'hardware-acceleration':
+          result = await settingsUnlocker.enableHardwareAcceleration();
+          isEnabled = result;
+          break;
+        case 'all-input-methods':
+          result = await settingsUnlocker.enableAllInputMethods();
+          isEnabled = result;
+          break;
+        case 'all-printing':
+          result = await settingsUnlocker.enableAllPrinting();
+          isEnabled = result;
+          break;
+        case 'all-camera-features':
+          result = await settingsUnlocker.enableAllCameraFeatures();
+          isEnabled = result;
+          break;
+        case 'all-location-services':
+          result = await settingsUnlocker.enableAllLocationServices();
+          isEnabled = result;
+          break;
+        case 'all-notifications':
+          result = await settingsUnlocker.enableAllNotifications();
+          isEnabled = result;
+          break;
+        case 'all-sensors':
+          result = await settingsUnlocker.enableAllSensors();
+          isEnabled = result;
+          break;
+        case 'all-payment-apis':
+          result = await settingsUnlocker.enableAllPaymentAPIs();
+          isEnabled = result;
+          break;
+        case 'all-font-access':
+          result = await settingsUnlocker.enableAllFontAccess();
+          isEnabled = result;
+          break;
+        case 'all-filesystem-apis':
+          result = await settingsUnlocker.enableAllFileSystemAPIs();
+          isEnabled = result;
+          break;
+        case 'all-background-sync':
+          result = await settingsUnlocker.enableAllBackgroundSync();
+          isEnabled = result;
+          break;
+        case 'all-push-notifications':
+          result = await settingsUnlocker.enableAllPushNotifications();
+          isEnabled = result;
+          break;
+        case 'all-media-features':
+          result = await settingsUnlocker.enableAllMediaFeatures();
+          isEnabled = result;
+          break;
+        case 'all-clipboard-features':
+          result = await settingsUnlocker.enableAllClipboardFeatures();
+          isEnabled = result;
+          break;
+        case 'all-download-features':
+          result = await settingsUnlocker.enableAllDownloadFeatures();
+          isEnabled = result;
+          break;
+        case 'all-autofill-features':
+          result = await settingsUnlocker.enableAllAutofillFeatures();
+          isEnabled = result;
+          break;
+        case 'all-sync-features':
+          result = await settingsUnlocker.enableAllSyncFeatures();
+          isEnabled = result;
+          break;
+        case 'all-search-features':
+          result = await settingsUnlocker.enableAllSearchFeatures();
+          isEnabled = result;
+          break;
+        case 'all-translation-features':
+          result = await settingsUnlocker.enableAllTranslationFeatures();
+          isEnabled = result;
+          break;
+        case 'all-spellcheck-features':
+          result = await settingsUnlocker.enableAllSpellCheckFeatures();
+          isEnabled = result;
+          break;
+        case 'all-history-features':
+          result = await settingsUnlocker.enableAllHistoryFeatures();
+          isEnabled = result;
+          break;
+        case 'all-bookmark-features':
+          result = await settingsUnlocker.enableAllBookmarkFeatures();
+          isEnabled = result;
+          break;
+        case 'all-tab-features':
+          result = await settingsUnlocker.enableAllTabFeatures();
+          isEnabled = result;
+          break;
+        case 'all-window-features':
+          result = await settingsUnlocker.enableAllWindowFeatures();
+          isEnabled = result;
+          break;
+        case 'all-pointer-lock-features':
+          result = await settingsUnlocker.enableAllPointerLockFeatures();
+          isEnabled = result;
+          break;
+        case 'all-gamepad-features':
+          result = await settingsUnlocker.enableAllGamepadFeatures();
+          isEnabled = result;
+          break;
+        case 'all-battery-api-features':
+          result = await settingsUnlocker.enableAllBatteryAPIFeatures();
+          isEnabled = result;
+          break;
+        case 'all-wake-lock-features':
+          result = await settingsUnlocker.enableAllWakeLockFeatures();
+          isEnabled = result;
+          break;
+        case 'all-presentation-api-features':
+          result = await settingsUnlocker.enableAllPresentationAPIFeatures();
+          isEnabled = result;
+          break;
+        case 'all-credential-management-features':
+          result = await settingsUnlocker.enableAllCredentialManagementFeatures();
+          isEnabled = result;
+          break;
+        case 'all-settings':
+          result = await settingsUnlocker.enableAllSettings();
+          isEnabled = result;
+          break;
+        case 'website-allowlist':
+          const { urls } = req.body;
+          const allowlistUrls = urls && Array.isArray(urls) ? urls : ['*'];
+          result = await settingsUnlocker.enableWebsiteAllowlist(allowlistUrls);
+          isEnabled = result;
+          break;
+        case 'disable-extensions':
+          result = await settingsUnlocker.disableAllExtensions();
+          isEnabled = result;
+          break;
+        default:
+          return res.status(400).json({ error: 'Unknown setting' });
+      }
     }
     
-    res.json({ success: result, enabled });
+    res.json({ success: result, enabled: isEnabled });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
@@ -814,7 +1083,7 @@ app.get('/api/filesystem/scan/cache', (req, res) => {
   const { path: scanPath = '/' } = req.query;
   
   try {
-    const cached = filesystemScanner.getCachedScan(scanPath as string);
+    const cached = filesystemScanner.getCachedScan(scanPath);
     if (cached) {
       res.json({ success: true, ...cached });
     } else {
@@ -829,7 +1098,7 @@ app.get('/api/filesystem/summary', async (req, res) => {
   const { path: summaryPath = '/' } = req.query;
   
   try {
-    const summary = await filesystemScanner.getFilesystemSummary(summaryPath as string);
+    const summary = await filesystemScanner.getFilesystemSummary(summaryPath);
     res.json({ success: true, ...summary });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });

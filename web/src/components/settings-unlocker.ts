@@ -564,6 +564,7 @@ class SettingsUnlockerUI {
 
   private async toggleSetting(settingId: string): Promise<void> {
     try {
+      // Try bridge API first
       const response = await fetch('http://127.0.0.1:8765/api/chromeos/settings/toggle', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -578,17 +579,54 @@ class SettingsUnlockerUI {
         if (typeof (window as any).notificationManager !== 'undefined') {
           (window as any).notificationManager.success(`Setting ${data.enabled ? 'enabled' : 'disabled'} successfully`);
         }
+        
+        // If Linux was enabled, notify the gate
+        if (settingId === 'linux-env' && data.enabled && typeof (window as any).chromeOSGate !== 'undefined') {
+          setTimeout(async () => {
+            await (window as any).chromeOSGate.updateStatus();
+          }, 1000);
+        }
       } else {
-        if (typeof (window as any).notificationManager !== 'undefined') {
-          (window as any).notificationManager.error(data.error || 'Failed to toggle setting');
+        // Try direct ChromeOS API as fallback
+        const directSuccess = await this.toggleSettingDirectly(settingId);
+        if (directSuccess) {
+          await this.refreshStatus();
+          this.render();
+          if (typeof (window as any).notificationManager !== 'undefined') {
+            (window as any).notificationManager.success('Setting enabled via ChromeOS API');
+          }
+        } else {
+          if (typeof (window as any).notificationManager !== 'undefined') {
+            (window as any).notificationManager.error(data.error || 'Failed to toggle setting');
+          }
         }
       }
     } catch (error: any) {
-      console.error('Failed to toggle setting:', error);
-      if (typeof (window as any).notificationManager !== 'undefined') {
-        (window as any).notificationManager.error(`Failed to toggle setting: ${error.message}`);
+      // Try direct ChromeOS API as fallback
+      const directSuccess = await this.toggleSettingDirectly(settingId);
+      if (directSuccess) {
+        await this.refreshStatus();
+        this.render();
+        if (typeof (window as any).notificationManager !== 'undefined') {
+          (window as any).notificationManager.success('Setting enabled via ChromeOS API');
+        }
+      } else {
+        console.error('Failed to toggle setting:', error);
+        if (typeof (window as any).notificationManager !== 'undefined') {
+          (window as any).notificationManager.error(`Failed to toggle setting: ${error.message}`);
+        }
       }
     }
+  }
+
+  private async toggleSettingDirectly(settingId: string): Promise<boolean> {
+    // Direct ChromeOS API access is not possible from web context
+    // All settings must be enabled via bridge server with root access
+    // This method is kept for compatibility but always returns false
+    if (typeof (window as any).notificationManager !== 'undefined') {
+      (window as any).notificationManager.warning('Bridge server required. Please start: cd bridge && npm start');
+    }
+    return false;
   }
 
   private async enableAllSettings(): Promise<void> {

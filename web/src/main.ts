@@ -22,6 +22,7 @@ import { getGlobalAIService, chatWithAI, isAIReady } from './standalone-ai';
 import { getEnhancedBridge } from './enhanced-bridge';
 import { ErrorHandler } from './utils/error-handler';
 import { ensureAsyncValue, safeQuerySelector } from './utils/resilience';
+import './components/chromeos-gate'; // Import ChromeOS gate to initialize it
 import './app.css';
 
 // Helper to get hostname (fallback for browser)
@@ -2465,30 +2466,96 @@ echo $! > /tmp/clay-bridge.pid
     }
 
     if (command === 'help') {
-      this.terminal.write(`\r\n\x1b[36m╔════════════════════════════════════════╗\x1b[0m\r\n`);
-      this.terminal.write(`\x1b[36m║\x1b[0m  \x1b[1mClay Terminal - Available Commands\x1b[0m  \x1b[36m║\x1b[0m\r\n`);
-      this.terminal.write(`\x1b[36m╚════════════════════════════════════════╝\x1b[0m\r\n\r\n`);
+      this.terminal.write(`\r\n\x1b[36m╔════════════════════════════════════════════════════════════╗\x1b[0m\r\n`);
+      this.terminal.write(`\x1b[36m║\x1b[0m  \x1b[1mClay Terminal - Complete Command Reference\x1b[0m  \x1b[36m║\x1b[0m\r\n`);
+      this.terminal.write(`\x1b[36m╚════════════════════════════════════════════════════════════╝\x1b[0m\r\n\r\n`);
       
-      this.terminal.write(`\x1b[33mBasic Commands:\x1b[0m\r\n`);
-      this.terminal.write(`  \x1b[32mclear\x1b[0m, \x1b[32mcls\x1b[0m     - Clear terminal screen\r\n`);
-      this.terminal.write(`  \x1b[32mhelp\x1b[0m               - Show this help message\r\n`);
-      this.terminal.write(`  \x1b[32m@ai <question>\x1b[0m    - Ask AI assistant (always available)\r\n`);
-      this.terminal.write(`  \x1b[32msearch <query>\x1b[0m     - Web search (uses SearXNG or LangSearch)\r\n`);
-      this.terminal.write(`  \x1b[32m@search <query>\x1b[0m   - Web search (alternative syntax)\r\n`);
+      this.terminal.write(`\x1b[33m═══════════════════════════════════════════════════════════════\x1b[0m\r\n`);
+      this.terminal.write(`\x1b[33m BASIC COMMANDS\x1b[0m\r\n`);
+      this.terminal.write(`\x1b[33m═══════════════════════════════════════════════════════════════\x1b[0m\r\n`);
+      this.terminal.write(`  \x1b[32mclear\x1b[0m, \x1b[32mcls\x1b[0m          - Clear terminal screen\r\n`);
+      this.terminal.write(`  \x1b[32mhelp\x1b[0m                  - Show this help message\r\n`);
+      this.terminal.write(`  \x1b[32m@ai <question>\x1b[0m       - Ask AI assistant (always available)\r\n`);
+      this.terminal.write(`  \x1b[32msearch <query>\x1b[0m        - Web search (uses SearXNG or LangSearch)\r\n`);
+      this.terminal.write(`  \x1b[32m@search <query>\x1b[0m      - Web search (alternative syntax)\r\n`);
+      this.terminal.write(`  \x1b[32mscan\x1b[0m                 - Scan filesystem for AI context\r\n`);
       if (this.isChromeOS) {
-        this.terminal.write(`  \x1b[32msettings\x1b[0m          - Open ChromeOS hidden settings unlocker\r\n`);
+        this.terminal.write(`  \x1b[32msettings\x1b[0m             - Open ChromeOS hidden settings unlocker\r\n`);
       }
-      this.terminal.write(`  \x1b[32mscan\x1b[0m              - Scan filesystem for AI context\r\n\r\n`);
+      this.terminal.write(`\r\n`);
+      
+      if (this.isChromeOS) {
+        this.terminal.write(`\x1b[33m═══════════════════════════════════════════════════════════════\x1b[0m\r\n`);
+        this.terminal.write(`\x1b[33m CHROMEOS HIDDEN SETTINGS (65+ Available)\x1b[0m\r\n`);
+        this.terminal.write(`\x1b[33m═══════════════════════════════════════════════════════════════\x1b[0m\r\n`);
+        this.terminal.write(`  Use \x1b[32msettings\x1b[0m command to access the full unlocker UI\r\n`);
+        this.terminal.write(`  Or toggle via API: POST /api/chromeos/settings/toggle\r\n\r\n`);
+        
+        this.terminal.write(`  \x1b[36mCore Features:\x1b[0m\r\n`);
+        this.terminal.write(`    • linux-env, adb, guest-mode, developer-mode\r\n`);
+        this.terminal.write(`    • user-accounts, developer-features, bypass-enrollment\r\n\r\n`);
+        
+        this.terminal.write(`  \x1b[36mNetwork & Sharing:\x1b[0m\r\n`);
+        this.terminal.write(`    • network-sharing, remote-desktop, screen-sharing\r\n`);
+        this.terminal.write(`    • all-network-ports, firewall-bypass\r\n\r\n`);
+        
+        this.terminal.write(`  \x1b[36mHardware Access:\x1b[0m\r\n`);
+        this.terminal.write(`    • usb-devices, bluetooth, all-sensors\r\n`);
+        this.terminal.write(`    • all-camera-features, all-location-services\r\n`);
+        this.terminal.write(`    • all-printing, hardware-acceleration\r\n\r\n`);
+        
+        this.terminal.write(`  \x1b[36mSystem Control:\x1b[0m\r\n`);
+        this.terminal.write(`    • root-access, full-system-access, kernel-modules\r\n`);
+        this.terminal.write(`    • filesystem-access, update-control, power-management\r\n`);
+        this.terminal.write(`    • display-control, audio-control, accessibility\r\n\r\n`);
+        
+        this.terminal.write(`  \x1b[36mWeb APIs (All Enabled):\x1b[0m\r\n`);
+        this.terminal.write(`    • all-web-apis, all-storage, all-extensions\r\n`);
+        this.terminal.write(`    • all-media-features, all-clipboard-features\r\n`);
+        this.terminal.write(`    • all-download-features, all-filesystem-apis\r\n`);
+        this.terminal.write(`    • all-payment-apis, all-push-notifications\r\n`);
+        this.terminal.write(`    • all-background-sync, all-font-access\r\n`);
+        this.terminal.write(`    • all-pointer-lock-features, all-gamepad-features\r\n`);
+        this.terminal.write(`    • all-battery-api-features, all-wake-lock-features\r\n`);
+        this.terminal.write(`    • all-presentation-api-features\r\n`);
+        this.terminal.write(`    • all-credential-management-features\r\n\r\n`);
+        
+        this.terminal.write(`  \x1b[36mBrowser Features:\x1b[0m\r\n`);
+        this.terminal.write(`    • all-autofill-features, all-sync-features\r\n`);
+        this.terminal.write(`    • all-search-features, all-translation-features\r\n`);
+        this.terminal.write(`    • all-spellcheck-features, all-history-features\r\n`);
+        this.terminal.write(`    • all-bookmark-features, all-tab-features\r\n`);
+        this.terminal.write(`    • all-window-features, all-notifications\r\n\r\n`);
+        
+        this.terminal.write(`  \x1b[36mDeveloper Tools:\x1b[0m\r\n`);
+        this.terminal.write(`    • developer-tools, all-debugging\r\n`);
+        this.terminal.write(`    • experimental-features, all-input-methods\r\n\r\n`);
+        
+        this.terminal.write(`  \x1b[36mSecurity Bypasses:\x1b[0m\r\n`);
+        this.terminal.write(`    • security-bypass, enterprise-bypasses\r\n`);
+        this.terminal.write(`    • content-filter-bypass, parental-controls-bypass\r\n`);
+        this.terminal.write(`    • privacy-bypass, website-allowlist\r\n`);
+        this.terminal.write(`    • disable-extensions (completely disable all extensions)\r\n\r\n`);
+        
+        this.terminal.write(`  \x1b[36mPermissions:\x1b[0m\r\n`);
+        this.terminal.write(`    • app-permissions, clipboard-access\r\n\r\n`);
+        
+        this.terminal.write(`  \x1b[36mMaster Control:\x1b[0m\r\n`);
+        this.terminal.write(`    • \x1b[1m\x1b[32mall-settings\x1b[0m - Enable ALL 65+ settings at once\r\n\r\n`);
+      }
       
       // Show device-specific commands
+      this.terminal.write(`\x1b[33m═══════════════════════════════════════════════════════════════\x1b[0m\r\n`);
       if (this.useBridge) {
-        this.terminal.write(`\x1b[33mSystem Commands (Full Access):\x1b[0m\r\n`);
+        this.terminal.write(`\x1b[33m SYSTEM COMMANDS (Full Access)\x1b[0m\r\n`);
+        this.terminal.write(`\x1b[33m═══════════════════════════════════════════════════════════════\x1b[0m\r\n`);
         this.terminal.write(`  All standard Unix/Linux commands available\r\n`);
         this.terminal.write(`  Full bash shell with real system access\r\n`);
         this.terminal.write(`  \x1b[32m✓ Root access enabled\x1b[0m - System-level operations supported\r\n`);
         this.terminal.write(`  \x1b[32m✓ Privileged APIs\x1b[0m - Kernel and device access available\r\n\r\n`);
       } else {
-        this.terminal.write(`\x1b[33mBrowser Commands:\x1b[0m\r\n`);
+        this.terminal.write(`\x1b[33m BROWSER COMMANDS (WebVM Mode)\x1b[0m\r\n`);
+        this.terminal.write(`\x1b[33m═══════════════════════════════════════════════════════════════\x1b[0m\r\n`);
         this.terminal.write(`  \x1b[32mls\x1b[0m      - List files and directories\r\n`);
         this.terminal.write(`  \x1b[32mcd\x1b[0m      - Change directory\r\n`);
         this.terminal.write(`  \x1b[32mpwd\x1b[0m     - Print working directory\r\n`);
@@ -2496,21 +2563,42 @@ echo $! > /tmp/clay-bridge.pid
         this.terminal.write(`  \x1b[32mcat\x1b[0m     - Display file contents\r\n`);
         this.terminal.write(`  \x1b[32mtouch\x1b[0m   - Create empty file\r\n`);
         this.terminal.write(`  \x1b[32mmkdir\x1b[0m   - Create directory\r\n`);
-        this.terminal.write(`  \x1b[32mrm\x1b[0m      - Remove file/directory\r\n\r\n`);
-        this.terminal.write(`\x1b[33mNote:\x1b[0m Start bridge server for full system access\r\n\r\n`);
+        this.terminal.write(`  \x1b[32mrm\x1b[0m      - Remove file/directory\r\n`);
+        this.terminal.write(`  \x1b[33mNote:\x1b[0m Start bridge server for full system access\r\n\r\n`);
       }
       
-      this.terminal.write(`\x1b[33mKeyboard Shortcuts:\x1b[0m\r\n`);
+      this.terminal.write(`\x1b[33m═══════════════════════════════════════════════════════════════\x1b[0m\r\n`);
+      this.terminal.write(`\x1b[33m KEYBOARD SHORTCUTS\x1b[0m\r\n`);
+      this.terminal.write(`\x1b[33m═══════════════════════════════════════════════════════════════\x1b[0m\r\n`);
       this.terminal.write(`  \x1b[32mTab\x1b[0m          - Command/file completion\r\n`);
       this.terminal.write(`  \x1b[32mCtrl+R\x1b[0m       - Reverse history search\r\n`);
       this.terminal.write(`  \x1b[32mCtrl+C\x1b[0m       - Copy selection or interrupt\r\n`);
       this.terminal.write(`  \x1b[32mCtrl+V\x1b[0m       - Paste from clipboard\r\n`);
+      this.terminal.write(`  \x1b[32mCtrl+Shift+T\x1b[0m - New terminal tab\r\n`);
+      this.terminal.write(`  \x1b[32mCtrl+P\x1b[0m       - Open command palette\r\n`);
       this.terminal.write(`  \x1b[32m↑/↓\x1b[0m          - Command history navigation\r\n\r\n`);
       
-      this.terminal.write(`\x1b[33mSearch Features:\x1b[0m\r\n`);
+      this.terminal.write(`\x1b[33m═══════════════════════════════════════════════════════════════\x1b[0m\r\n`);
+      this.terminal.write(`\x1b[33m SEARCH FEATURES\x1b[0m\r\n`);
+      this.terminal.write(`\x1b[33m═══════════════════════════════════════════════════════════════\x1b[0m\r\n`);
       this.terminal.write(`  \x1b[32msearch <query>\x1b[0m - Web search (auto-switches based on CPU)\r\n`);
       this.terminal.write(`  \x1b[36m  • SearXNG\x1b[0m - Self-hosted when CPU < ${this.CPU_THRESHOLD}%\r\n`);
       this.terminal.write(`  \x1b[36m  • LangSearch\x1b[0m - API-based when CPU > ${this.CPU_THRESHOLD}%\r\n\r\n`);
+      
+      this.terminal.write(`\x1b[33m═══════════════════════════════════════════════════════════════\x1b[0m\r\n`);
+      this.terminal.write(`\x1b[33m CLAY-SPECIFIC FEATURES\x1b[0m\r\n`);
+      this.terminal.write(`\x1b[33m═══════════════════════════════════════════════════════════════\x1b[0m\r\n`);
+      this.terminal.write(`  \x1b[32m@ai enable\x1b[0m   - Enable AI auto-execution mode\r\n`);
+      this.terminal.write(`  \x1b[32m@ai disable\x1b[0m  - Disable AI auto-execution mode\r\n`);
+      this.terminal.write(`  \x1b[32m@ai status\x1b[0m   - Show AI service status\r\n`);
+      this.terminal.write(`  \x1b[32mscan\x1b[0m         - Scan filesystem and inject context to AI\r\n`);
+      if (this.isChromeOS) {
+        this.terminal.write(`  \x1b[32msettings\x1b[0m     - ChromeOS hidden settings unlocker (65+ settings)\r\n`);
+        this.terminal.write(`  \x1b[32mwebsite-allowlist\x1b[0m - Override all extensions/policy blocks\r\n`);
+      }
+      this.terminal.write(`\r\n`);
+      
+      this.terminal.write(`\x1b[36mFor more information, visit: https://github.com/your-repo/clay\x1b[0m\r\n\r\n`);
       
       this.writePrompt();
       return;
@@ -3267,7 +3355,7 @@ Note: This is a summary of the user's filesystem. Use this information to answer
     try {
       this.terminal.write('\r\n');
       this.terminal.write(`\x1b[1m\x1b[36m╔═══════════════════════════════════════════════════════╗\x1b[0m\r\n`);
-      this.terminal.write(`\x1b[1m\x1b[36m║\x1b[0m  \x1b[1m\x1b[34mClay Terminal\x1b[0m - Professional Web Terminal              \x1b[1m\x1b[36m║\x1b[0m\r\n`);
+      this.terminal.write(`\x1b[1m\x1b[36m║\x1b[0m  \x1b[1m\x1b[34mClay Terminal\x1b[0m - Take Control of your Chromebook        \x1b[1m\x1b[36m║\x1b[0m\r\n`);
       this.terminal.write(`\x1b[1m\x1b[36m╚═══════════════════════════════════════════════════════╝\x1b[0m\r\n`);
       this.terminal.write('\r\n');
       this.terminal.write(`  \x1b[32m✓\x1b[0m \x1b[36mAI Assistant (JOSIEFIED)\x1b[0m - Type \x1b[33m@ai <question>\x1b[0m\r\n`);
@@ -3830,8 +3918,8 @@ function renderLanding(): void {
     <header class="glass border-b border-white/10 px-8 py-6">
       <div class="flex items-center justify-between">
         <div>
-          <h1 class="text-3xl font-bold text-white mb-1">Terminal Management</h1>
-          <p class="text-gray-400 text-sm">Track and improve your terminal status</p>
+          <h1 class="text-3xl font-bold text-white mb-1">Take Control of your Chromebook</h1>
+          <p class="text-gray-400 text-sm">Unlock 65+ hidden settings and full system access</p>
           </div>
         <div class="flex items-center gap-4">
           <div class="flex items-center gap-2 px-4 py-2 glass rounded-lg">
@@ -3864,11 +3952,11 @@ function renderLanding(): void {
         <!-- Hero Section -->
         <div class="mb-8">
           <h1 class="text-6xl md:text-7xl font-bold text-white mb-4 tracking-tight animate-fade-up">
-            Professional Terminal
-            <span class="block bg-gradient-to-r from-blue-400 to-orange-400 bg-clip-text text-transparent">for the Web</span>
+            Take Control of
+            <span class="block bg-gradient-to-r from-blue-400 to-orange-400 bg-clip-text text-transparent">your Chromebook</span>
       </h1>
           <p class="text-xl text-gray-300 mb-8 max-w-3xl leading-relaxed animate-fade-up" style="animation-delay: 0.1s;">
-        Clay gives you a powerful, AI-augmented terminal experience right in your browser. Full system access, tab completion, history search, and more.
+        Clay gives you complete control over your Chromebook with 65+ hidden settings, AI-augmented terminal, full system access, and the power to override any restriction. Unlock the true potential of ChromeOS.
       </p>
           <div class="flex gap-4 flex-wrap animate-fade-up" style="animation-delay: 0.2s;">
             <button id="open-terminal" class="px-8 py-4 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white rounded-xl font-semibold text-lg shadow-lg hover:shadow-xl transition-all transform hover:scale-[1.02] active:scale-[0.98] border border-blue-500/50 focus:outline-none focus:ring-2 focus:ring-blue-500/50" aria-label="Open Terminal">
@@ -4334,8 +4422,18 @@ function renderTerminalView(): void {
   }
 }
 
-function route() {
+async function route() {
   initTheme();
+  
+  // Check ChromeOS gate before allowing access
+  if (typeof (window as any).chromeOSGate !== 'undefined') {
+    const blocked = await (window as any).chromeOSGate.checkAndBlock();
+    if (blocked) {
+      // Gate is showing, don't render anything else
+      return;
+    }
+  }
+  
   if (location.hash === '#terminal') {
     renderTerminalView();
   } else {

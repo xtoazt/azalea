@@ -1,242 +1,231 @@
-# Clay Terminal
+# Clay Terminal - Enhanced Edition
 
-A beautiful, modern terminal built with Electron and Web technologies, inspired by [Hyper](https://hyper.is/). Clay provides a full-featured terminal experience that runs on Chromebooks (as a PWA) and desktop (Electron), allowing you to execute shell scripts, ADB commands, and any other terminal commands you need.
+A powerful, feature-rich terminal that runs in your browser with real system access, AI assistance, and cross-platform support.
 
-## 📦 NPM Package
+## 🌟 Features
 
-Clay Terminal is also available as an **NPM package** for easy integration into existing projects:
+### Core Terminal
+- **Full Terminal Emulation** - xterm.js with advanced addons (Search, Unicode11, Image, Ligatures)
+- **Multi-Tab Support** - Manage multiple terminal sessions
+- **Command Palette** - Fuzzy search for commands (Ctrl+P)
+- **Keyboard Shortcuts** - Comprehensive shortcut system
+- **Session Sharing** - Share terminal sessions via URL
 
-```bash
-npm install clay-util
-```
+### System Access
+- **Enhanced Bridge System** - Automatic fallback between bridge types
+  - External Bridge (Node.js server) - Full system access
+  - WebVM Bridge - Browser-based fallback
+  - Automatic reconnection and health monitoring
+- **Root/Privileged Access** - Execute commands with elevated privileges
+- **ChromeOS Integration** - Special support for ChromeOS with auto-start
+- **Cross-Platform** - Works on ChromeOS, macOS, Windows, Linux
 
-**Perfect for ChromeOS users** - Access terminal functionality directly from the web, even without terminal app access!
+### AI Assistant
+- **JOSIEFIED AI** - Local AI inference using WebLLM
+- **Always Available** - AI works even if terminal backend fails
+- **File-Aware** - AI can discuss your filesystem
+- **Auto-Fix** - AI automatically fixes command errors
+- **Multiple Quantization Options** - Q4, Q8, F16 for performance/quality tradeoff
 
-See [Integration Guide](./INTEGRATION.md) for detailed integration examples, or [Package Documentation](./README-PACKAGE.md) for full API reference.
+### ChromeOS Features
+- **Hidden Settings Unlocker** - Access all ChromeOS settings
+- **Linux Files Integration** - Automatic file saving to Linux Files
+- **ADB Connection** - Enable ADB debugging
+- **Developer Mode** - Enable developer features
+- **Guest Mode** - Enable guest browsing
+- **User Management** - Add/manage user accounts
 
-**Now with Real System Access!** - The web version can connect to a local bridge server for **real system command execution** and **real filesystem access**. Or run in browser-only mode with Web Workers as a fallback.
+### UI/UX
+- **Modern Design** - Dark blue/orange theme with glassmorphism
+- **Smooth Animations** - Subtle, professional animations
+- **Responsive Layout** - Works on all screen sizes
+- **Status Indicators** - Real-time connection status
+- **Notifications** - Toast notification system
 
 ## 🚀 Quick Start
 
-### Web Version with Real System Access
+### Web Version (No Installation)
+1. Open the web terminal in your browser
+2. The terminal automatically:
+   - Tries to connect to external bridge (if available)
+   - Falls back to WebVM (browser-based)
+   - Initializes AI assistant
+   - Works immediately!
 
-**For real system command execution and filesystem access:**
-
-1. **Start the bridge server:**
-   ```bash
-   ./start-bridge.sh
-   ```
-   Or manually:
+### With Bridge Server (Full System Access)
+1. Start the bridge server:
    ```bash
    cd bridge
    npm install
    npm start
    ```
+2. Open the web terminal - it will auto-connect
+3. Enjoy full system command execution!
 
-2. **Start the web terminal:**
-   ```bash
-   cd web
-   npm install
-   npm run dev
-   ```
+## 📦 Architecture
 
-3. **Open `http://localhost:3000`** - The terminal will automatically connect to the bridge!
+### Enhanced Bridge System
+The terminal uses a sophisticated bridge system with automatic fallback:
 
-**With bridge running, you get:**
-- ✅ Real system command execution (full bash)
-- ✅ Real filesystem access (your actual files)
-- ✅ All commands work (not just a limited set)
+1. **External Bridge** (Preferred)
+   - Node.js server running locally
+   - Full system command execution
+   - Real filesystem access
+   - WebSocket for real-time I/O
 
-**Without bridge:** Falls back to Web Worker mode (browser-only, limited commands)
+2. **WebVM Bridge** (Fallback)
+   - Runs entirely in browser
+   - Limited command set
+   - Virtual filesystem
+   - Always available
 
-### Electron Version (Desktop App)
+3. **Automatic Fallback**
+   - Tries external bridge first
+   - Falls back to WebVM if unavailable
+   - Auto-reconnects when bridge becomes available
+   - Health monitoring and circuit breaker
 
-For the desktop version:
-```bash
-npm install
-npm run build
-npm start
+### Error Handling
+- **Comprehensive Error Handler** - Tracks all errors with context
+- **Resilience Utilities** - Safe DOM operations, retry logic, timeouts
+- **Circuit Breaker** - Prevents cascading failures
+- **Graceful Degradation** - App always works, even with failures
+
+### AI System
+- **Standalone AI Service** - Works independently of terminal
+- **Global Instance** - Shared across all components
+- **Background Initialization** - Doesn't block startup
+- **Multiple Fallbacks** - Always available
+
+## 🛠️ Development
+
+### Project Structure
 ```
-
-### Web Version (Static PWA) - **60 Seconds!**
-For static deployment without backend:
-1. **Enable GitHub Pages:** Repository → Settings → Pages → Source: "GitHub Actions"
-2. **Push to main:** `git push origin main`
-3. **Done!** Visit: `https://yourusername.github.io/clay/`
-4. **Install on Chromebook:** Click "Install" button!
-
-👉 **See [QUICK_START.md](.github/QUICK_START.md) for step-by-step instructions**
-
-### Electron App Releases
-1. **Create a release** on GitHub (tag: `v1.0.0`)
-2. **Automatically builds** for macOS, Linux, Windows
-3. **Download** from the release page!
-
-👉 **See [DEPLOYMENT.md](.github/DEPLOYMENT.md) for detailed instructions**
-
-## Features
-
-- 🖥️ **Real Terminal Functionality** - Full PTY (pseudo-terminal) support via node-pty for true terminal emulation, just like VS Code's integrated terminal
-- ⚡ **AI-Powered Assistant** - Built-in AI assistant with Quick Fix for automatic error diagnosis and resolution
-- 🎨 **Hyper-Inspired UI** - Beautiful, clean interface based on [Hyper terminal](https://hyper.is/)
-- 📜 **Command History** - Navigate through previous commands with arrow keys
-- 📁 **Directory Navigation** - Full `cd` and `pwd` support with `~` expansion
-- 🔄 **Streaming Support** - Real-time output for interactive commands
-- 🎯 **Interactive Programs** - Support for vim, nano, htop, python interactive mode, and more
-- ⌨️ **Keyboard Shortcuts** - Ctrl+C to cancel, Alt+F for Quick Fix, arrow keys for history
-- 🎯 **Platform Agnostic** - Works on Windows, macOS, and Linux (perfect for Chromebooks)
-- 🚀 **Fast & Responsive** - Optimized for smooth performance
-- 🖱️ **Terminal Resizing** - Automatic terminal dimension updates on window resize
-- 🌈 **ANSI Support** - Proper handling of colored terminal output and escape codes
-
-## Installation
-
-1. **Install dependencies:**
-```bash
-npm install
+clay/
+├── web/              # Frontend (Vite + TypeScript)
+│   ├── src/
+│   │   ├── main.ts              # Main terminal class
+│   │   ├── enhanced-bridge.ts   # Enhanced bridge system
+│   │   ├── standalone-ai.ts     # Global AI service
+│   │   ├── utils/
+│   │   │   ├── error-handler.ts # Error handling
+│   │   │   └── resilience.ts    # Resilience utilities
+│   │   └── components/          # UI components
+│   └── package.json
+├── bridge/           # Node.js bridge server
+│   └── bridge.js
+└── backend/          # Backend utilities
+    ├── system-access.js
+    ├── privileged-apis.js
+    └── chromeos-settings-unlocker.js
 ```
-
-2. **Build the project:**
-```bash
-npm run build
-```
-
-3. **Start the application:**
-```bash
-npm start
-```
-
-Or use the dev script for development:
-```bash
-npm run dev
-```
-
-## Usage
-
-Once Clay Terminal starts, you can:
-
-- **Type any shell command** and press Enter to execute it
-- **Use `cd <directory>`** to change directories (supports `~` for home directory)
-- **Use `pwd`** to see the current directory
-- **Use `clear` or `cls`** to clear the terminal
-- **Use `help`** to see available built-in commands
-- **Use Arrow Up/Down** to navigate command history
-- **Use Ctrl+C** to cancel the current command
-
-### Example Commands
-
-```bash
-# File operations
-ls -la
-cat file.txt
-grep "search" file.txt
-
-# ADB commands
-adb devices
-adb install app.apk
-adb shell pm list packages
-
-# Development tools
-npm install
-python script.py
-git status
-
-# System commands
-ps aux
-df -h
-top
-```
-
-## Built-in Commands
-
-- `clear` / `cls` - Clear the terminal screen
-- `cd <dir>` - Change to a different directory (use `~` for home)
-- `pwd` - Print the current working directory
-- `help` - Show help message
-
-## Project Structure
-
-```
-├── src/              # Main process TypeScript files
-│   ├── main.ts      # Electron main process with command execution
-│   └── preload.ts   # Preload script for secure IPC
-├── renderer/         # Renderer process files
-│   ├── index.html   # Main HTML file
-│   ├── styles.css   # Hyper-inspired terminal styling
-│   └── renderer.ts  # Terminal logic and UI
-├── dist/             # Compiled JavaScript (generated)
-└── package.json      # Project configuration
-```
-
-## Development
-
-The project uses TypeScript for type safety. The main process runs in Node.js with secure IPC communication, while the renderer process runs in a Chromium-based browser window.
 
 ### Building
-
 ```bash
+cd web
+npm install
 npm run build
 ```
 
-This will:
-1. Compile all TypeScript files
-2. Copy HTML and CSS files to the dist folder
-
-### Development Mode
-
+### Development
 ```bash
+cd web
 npm run dev
 ```
 
-Runs the build and starts Electron in development mode.
+## 🔧 Configuration
 
-## Security
+### Bridge Configuration
+The enhanced bridge system can be configured:
 
-Clay Terminal uses Electron's security best practices:
-- **Context isolation** enabled
-- **Node integration** disabled in renderer
-- **Secure IPC communication** via preload script
-- **Process management** with proper cleanup
+```typescript
+const bridge = getEnhancedBridge({
+  preferredType: 'external',  // 'external' | 'webvm'
+  enableAutoFallback: true,   // Auto-fallback on failure
+  retryAttempts: 3,           // Retry attempts
+  timeout: 10000              // Connection timeout
+});
+```
 
-## Shell Support
+### AI Configuration
+```typescript
+const ai = getWebLLMService({
+  quantization: 'q4f16_1',    // 'q4f16_1' | 'q4f32_1' | 'q8f16_1' | 'f16'
+  temperature: 0.7,
+  topP: 0.95,
+  maxGenLen: 2048
+});
+```
 
-Clay Terminal automatically detects and uses the system's default shell:
-- **Windows**: `cmd.exe` or `COMSPEC`
-- **macOS/Linux**: `bash`, `zsh`, or `SHELL` environment variable
+## 🎯 Usage
 
-## Real Terminal Emulation
+### Basic Commands
+- `ls` - List files
+- `cd <dir>` - Change directory
+- `pwd` - Print working directory
+- `cat <file>` - Display file contents
+- `clear` - Clear terminal
+- `help` - Show help
 
-Clay uses [node-pty](https://github.com/microsoft/node-pty), the same library that powers VS Code's integrated terminal, for true terminal emulation:
+### AI Commands
+- `@ai <question>` - Ask AI a question
+- `@ai enable` - Enable AI auto-execution
+- `@ai disable` - Disable AI auto-execution
+- `@ai status` - Show AI status
 
-- **PTY Support**: Real pseudo-terminal (PTY) sessions for interactive programs
-- **Interactive Programs**: Run vim, nano, htop, python interactive mode, and more
-- **Real Input Handling**: Proper keyboard input forwarding to interactive programs
-- **Terminal Resizing**: Automatic dimension updates when the window is resized
-- **ANSI Codes**: Full support for colored output and terminal escape sequences
+### Special Commands
+- `settings` - Open ChromeOS settings unlocker
+- `scan` - Scan filesystem for AI context
+- `share` - Copy session share link
 
-This gives you a **real terminal experience** - not just command execution, but actual terminal emulation like you'd get in a native terminal application.
+## 🔒 Security
 
-## Perfect for Chromebooks
+- Bridge server runs on localhost only (default)
+- All commands execute with user privileges
+- No remote code execution
+- Secure credential management for root operations
 
-Clay Terminal is designed to work on Chromebooks where you might not have direct access to the native terminal. 
+## 📝 License
 
-**With Bridge Server (Recommended):**
-- ✅ Real system command execution (full bash)
-- ✅ Real filesystem access (your actual files)
-- ✅ All commands work (not just a limited set)
-- ✅ Interactive programs (vim, nano, htop, etc.)
+See LICENSE file for details.
 
-**Without Bridge (Fallback):**
-- Browser-only execution (Web Worker)
-- Virtual filesystem (in-memory)
-- Limited command set
+## 🙏 Acknowledgments
 
-**To get real system access:** Start the bridge server with `./start-bridge.sh` or install it as a system service.
+- [xterm.js](https://xtermjs.org/) - Terminal emulator
+- [WebLLM](https://webllm.mlc.ai/) - Browser-based AI inference
+- [BrowserPod](https://github.com/leaningtech/browserpod-meta) - Inspiration for in-browser runtime
 
-## Inspiration
+## 🐛 Troubleshooting
 
-This terminal is inspired by [Hyper](https://hyper.is/), a beautiful terminal built on web technologies. Clay brings that same beautiful experience with enhanced functionality for command execution.
+### Terminal Not Loading
+- Check browser console for errors
+- Ensure DOM is fully loaded
+- Try refreshing the page
 
-## License
+### Bridge Not Connecting
+- Verify bridge server is running: `curl http://127.0.0.1:8765/api/health`
+- Check firewall settings
+- Terminal will auto-fallback to WebVM
 
-MIT
+### AI Not Working
+- Check browser console for WebLLM errors
+- AI will gracefully disable if model not available
+- Terminal continues to work without AI
+
+### ChromeOS Issues
+- Ensure Linux (Beta) is enabled
+- Bridge should run in Linux container
+- Check Linux Files folder permissions
+
+## 🚧 Roadmap
+
+- [ ] Split pane support
+- [ ] Multiple theme options
+- [ ] Profile system
+- [ ] Enhanced clipboard
+- [ ] Full keyboard navigation
+- [ ] Screen reader support
+
+---
+
+**Made with precision to always work, everywhere.**

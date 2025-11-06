@@ -19,6 +19,9 @@ import { TerminalTab } from './types/terminal';
 import { getWebLLMService } from './backend-webllm';
 import { settingsUnlockerUI } from './components/settings-unlocker';
 import { getGlobalAIService, chatWithAI, isAIReady } from './standalone-ai';
+import { getEnhancedBridge } from './enhanced-bridge';
+import { ErrorHandler } from './utils/error-handler';
+import { ensureAsyncValue, safeQuerySelector } from './utils/resilience';
 import './app.css';
 
 // Helper to get hostname (fallback for browser)
@@ -321,18 +324,18 @@ class ClayWebTerminal {
     // Search status (if element exists)
     const searchDot = document.getElementById('search-dot');
     if (searchDot) {
-      this.updateSearchStatus('idle');
+    this.updateSearchStatus('idle');
     }
     
     // Periodically check backend status and CPU
     if (!this.statusBarInterval) {
       this.statusBarInterval = setInterval(() => {
-        this.checkBackendComponents();
-        this.updateCPUUsage();
+      this.checkBackendComponents();
+      this.updateCPUUsage();
         if (searchDot) {
           this.updateSearchStatus(this.searchStatus);
         }
-      }, 2000);
+    }, 2000);
     }
     
     // Setup model selector (quantization options for JOSIEFIED)
@@ -345,12 +348,12 @@ class ClayWebTerminal {
           modelSelect.value = 'q4f16_1';
         }
         modelSelect.addEventListener('change', async () => {
-          if (this.aiAssistant) {
+        if (this.aiAssistant) {
             const quantization = modelSelect.value as 'q4f16_1' | 'q4f32_1' | 'q8f16_1' | 'f16';
             this.aiAssistant.updateConfig({ quantization });
             this.terminal.write(`\r\n\x1b[32m[AI]\x1b[0m Quantization changed to: ${quantization}\r\n`);
             this.terminal.write(`\x1b[33m[INFO]\x1b[0m Model will reload with new quantization on next use.\r\n`);
-            this.writePrompt();
+          this.writePrompt();
           } else {
             notificationManager.info('AI Assistant not initialized yet');
           }
@@ -1210,13 +1213,13 @@ echo $! > /tmp/clay-bridge.pid
       // Escape to cancel search
       if (event.key === 'Escape') {
         if (this.historySearchMode) {
-          event.preventDefault();
-          this.cancelHistorySearch();
-          return false;
+        event.preventDefault();
+        this.cancelHistorySearch();
+        return false;
         } else if (this.terminalSearchOpen) {
           event.preventDefault();
           this.closeTerminalSearch();
-          return false;
+        return false;
         }
       }
       
@@ -1266,23 +1269,23 @@ echo $! > /tmp/clay-bridge.pid
     // Right-click context menu for copy
     const terminalElement = document.getElementById('terminal');
     if (terminalElement) {
-      terminalElement.addEventListener('contextmenu', (e: MouseEvent) => {
-        e.preventDefault();
-        const selection = this.terminal.getSelection();
-        if (selection && selection.length > 0) {
-          navigator.clipboard.writeText(selection).then(() => {
+    terminalElement.addEventListener('contextmenu', (e: MouseEvent) => {
+      e.preventDefault();
+      const selection = this.terminal.getSelection();
+      if (selection && selection.length > 0) {
+        navigator.clipboard.writeText(selection).then(() => {
             notificationManager.success(`Copied ${selection.length} character${selection.length !== 1 ? 's' : ''} to clipboard`);
           }).catch(() => {
             notificationManager.error('Failed to copy to clipboard');
           });
-        }
-      });
+      }
+    });
 
-      // Double-click to select word and copy
-      terminalElement.addEventListener('dblclick', () => {
-        const selection = this.terminal.getSelection();
-        if (selection && selection.length > 0) {
-          navigator.clipboard.writeText(selection).then(() => {
+    // Double-click to select word and copy
+    terminalElement.addEventListener('dblclick', () => {
+      const selection = this.terminal.getSelection();
+      if (selection && selection.length > 0) {
+        navigator.clipboard.writeText(selection).then(() => {
             notificationManager.success(`Copied ${selection.length} character${selection.length !== 1 ? 's' : ''} to clipboard`);
           }).catch(() => {
             notificationManager.error('Failed to copy to clipboard');
@@ -1941,8 +1944,118 @@ echo $! > /tmp/clay-bridge.pid
   }
 
   private async initializeBackend(): Promise<void> {
-    // On ChromeOS, try to auto-start bridge server if not running
+    // Use enhanced bridge system with automatic fallback
+    try {
+      const enhancedBridge = getEnhancedBridge({
+        preferredType: this.isChromeOS ? 'external' : 'external',
+        enableAutoFallback: true,
+        retryAttempts: 3,
+        timeout: 10000
+      });
+
+      this.backend = await ErrorHandler.safeExecute(
+        () => enhancedBridge.initialize(),
+        new WebWorkerBackendWrapper(),
+        { component: 'ClayWebTerminal', operation: 'initializeBackend' }
+      );
+
+      if (!this.backend) {
+        throw new Error('Failed to initialize any bridge');
+      }
+
+      // Determine bridge type
+      const bridgeType = enhancedBridge.getBridgeType();
+      this.useBridge = bridgeType === 'external';
+      
+      // Update status
+      if (bridgeType === 'external') {
+        this.updateBridgeStatus('connecting');
+        this.updateWebSocketStatus('connecting');
+      } else {
+        this.updateWebVMStatus('connecting');
+        this.updateBridgeStatus('disconnected');
+        this.updateWebSocketStatus('disconnected');
+      }
+
+      // Setup backend connection
+      try {
+        await this.setupBackend();
+      } catch (setupError) {
+        ErrorHandler.handle(setupError, {
+          component: 'ClayWebTerminal',
+          operation: 'setupBackend'
+        });
+        // Continue anyway - backend might still work
+      }
+
+      // Update status based on connection
+      if (this.isConnected) {
+        if (bridgeType === 'external') {
+          this.updateBridgeStatus('connected');
+          this.updateWebSocketStatus('connected');
+          this.updateWebVMStatus('disconnected');
+          
+          // Check for Linux Files access (ChromeOS specific)
     if (this.isChromeOS) {
+            const linuxFilesPath = await ensureAsyncValue(
+              () => this.checkLinuxFilesAccess(),
+              null,
+              'Could not check Linux Files access'
+            );
+            if (linuxFilesPath) {
+              this.terminal.write(`\r\n\x1b[32m[INFO]\x1b[0m Linux Files access detected: ${linuxFilesPath}\r\n`);
+              this.terminal.write(`\x1b[33m[INFO]\x1b[0m Files will be saved to Linux Files folder when possible.\r\n`);
+            }
+          }
+        } else {
+          this.updateWebVMStatus('connected');
+        }
+      }
+
+      // Show connection message
+      const platformMsg = bridgeType === 'external'
+        ? '\x1b[32m[INFO]\x1b[0m Connected to system terminal via bridge\r\n'
+        : '\x1b[36m[INFO]\x1b[0m Running in WebVM mode (browser-based)\r\n';
+      
+      this.terminal.write(`\r\n${platformMsg}`);
+      this.terminal.write('\x1b[33m[INFO]\x1b[0m Available commands: ls, cd, pwd, echo, cat, clear, help, @ai\r\n');
+      this.terminal.write('\x1b[32m[INFO]\x1b[0m AI Assistant (@ai) is always available!\r\n');
+      
+      if (bridgeType !== 'external' && !this.isChromeOS) {
+        this.terminal.write('\x1b[33m[INFO]\x1b[0m To enable full system commands, start the bridge server:\r\n');
+        this.terminal.write('\x1b[36m[INFO]\x1b[0m   cd bridge && npm install && npm start\r\n');
+        this.terminal.write('\x1b[33m[INFO]\x1b[0m The terminal will auto-connect when bridge is available.\r\n');
+      }
+
+      return; // Successfully initialized
+    } catch (error: any) {
+      ErrorHandler.handle(error, {
+        component: 'ClayWebTerminal',
+        operation: 'initializeBackend',
+        details: { isChromeOS: this.isChromeOS }
+      });
+
+      // Final fallback to WebVM
+      console.warn('[INFO] Enhanced bridge failed, using WebVM fallback');
+      this.backend = new WebWorkerBackendWrapper();
+      this.useBridge = false;
+      this.updateWebVMStatus('connecting');
+      
+      try {
+        await this.backend.connect();
+        this.updateWebVMStatus('connected');
+        this.terminal.write('\r\n\x1b[36m[INFO]\x1b[0m Running in WebVM mode\r\n');
+        this.terminal.write('\x1b[32m[INFO]\x1b[0m AI Assistant (@ai) is always available!\r\n');
+      } catch (webvmError) {
+        this.updateWebVMStatus('error');
+        this.terminal.write(`\r\n\x1b[31m[ERROR]\x1b[0m Failed to initialize terminal backend\r\n`);
+        this.terminal.write('\x1b[33m[INFO]\x1b[0m AI Assistant (@ai) is still available!\r\n');
+      }
+    }
+    
+    // All bridge initialization is handled by EnhancedBridge above
+    // This section should not be reached, but kept as final safety net
+    if (!this.backend) {
       try {
         const bridge = new BridgeBackend();
         const isHealthy = await bridge.healthCheck();
@@ -2007,11 +2120,11 @@ echo $! > /tmp/clay-bridge.pid
           
           // Check for Linux Files access (ChromeOS specific)
           if (this.isChromeOS) {
-            const linuxFilesPath = await this.checkLinuxFilesAccess();
-            if (linuxFilesPath) {
-              this.terminal.write(`\r\n\x1b[32m[INFO]\x1b[0m Linux Files access detected: ${linuxFilesPath}\r\n`);
-              this.terminal.write(`\x1b[33m[INFO]\x1b[0m Files will be saved to Linux Files folder when possible.\r\n`);
-            }
+          const linuxFilesPath = await this.checkLinuxFilesAccess();
+          if (linuxFilesPath) {
+            this.terminal.write(`\r\n\x1b[32m[INFO]\x1b[0m Linux Files access detected: ${linuxFilesPath}\r\n`);
+            this.terminal.write(`\x1b[33m[INFO]\x1b[0m Files will be saved to Linux Files folder when possible.\r\n`);
+          }
           }
         } catch (connectError: any) {
           console.error('[ERROR] Failed to connect to bridge WebSocket:', connectError);
@@ -2042,8 +2155,8 @@ echo $! > /tmp/clay-bridge.pid
               console.log('[INFO] Reconnecting to bridge...');
               this.backend = bridge;
               await this.setupBackend();
-            }
-          } catch (error) {
+      }
+    } catch (error) {
             // Silent retry
           }
         }
@@ -2055,8 +2168,8 @@ echo $! > /tmp/clay-bridge.pid
     try {
       this.backend = new WebWorkerBackendWrapper();
       this.useBridge = false;
-      this.updateBridgeStatus('disconnected');
-      this.updateWebSocketStatus('disconnected');
+    this.updateBridgeStatus('disconnected');
+    this.updateWebSocketStatus('disconnected');
       this.updateWebVMStatus('connecting');
       
       // Initialize WebVM backend (connect)
@@ -2083,43 +2196,43 @@ echo $! > /tmp/clay-bridge.pid
       }
       
       // Set up background retry for bridge connection (especially on ChromeOS)
-      const bridgeRetryInterval = setInterval(async () => {
+    const bridgeRetryInterval = setInterval(async () => {
         if (!this.useBridge) {
-          try {
-            const bridge = new BridgeBackend();
-            const isHealthy = await bridge.healthCheck();
-            if (isHealthy) {
+        try {
+          const bridge = new BridgeBackend();
+          const isHealthy = await bridge.healthCheck();
+          if (isHealthy) {
               console.log('[INFO] Bridge server found, switching from WebVM to real system');
               clearInterval(bridgeRetryInterval);
               
-              this.backend = bridge;
-              this.useBridge = true;
-              this.updateBridgeStatus('connecting');
-              this.updateWebSocketStatus('connecting');
+            this.backend = bridge;
+            this.useBridge = true;
+            this.updateBridgeStatus('connecting');
+            this.updateWebSocketStatus('connecting');
               this.updateWebVMStatus('disconnected');
-              
-              try {
-                await this.setupBackend();
-                this.terminal.write('\r\n\x1b[32m[INFO]\x1b[0m Connected to real system terminal!\r\n');
-                this.terminal.write('\x1b[33m[INFO]\x1b[0m All commands now execute on your system.\r\n');
-                this.writePrompt();
-              } catch (connectError) {
-                console.error('[ERROR] Failed to connect WebSocket:', connectError);
-                this.updateBridgeStatus('error');
-                this.updateWebSocketStatus('error');
+            
+            try {
+              await this.setupBackend();
+              this.terminal.write('\r\n\x1b[32m[INFO]\x1b[0m Connected to real system terminal!\r\n');
+              this.terminal.write('\x1b[33m[INFO]\x1b[0m All commands now execute on your system.\r\n');
+              this.writePrompt();
+            } catch (connectError) {
+              console.error('[ERROR] Failed to connect WebSocket:', connectError);
+              this.updateBridgeStatus('error');
+              this.updateWebSocketStatus('error');
                 // Fall back to WebVM
                 this.backend = new WebWorkerBackendWrapper();
                 this.useBridge = false;
                 await this.backend.connect();
                 this.updateWebVMStatus('connected');
-              }
             }
-          } catch (error) {
-            // Continue with WebVM
           }
-        } else {
-          clearInterval(bridgeRetryInterval);
+        } catch (error) {
+            // Continue with WebVM
         }
+      } else {
+        clearInterval(bridgeRetryInterval);
+      }
       }, this.isChromeOS ? 2000 : 5000); // More frequent on ChromeOS
       
     } catch (error: any) {
@@ -2558,8 +2671,8 @@ echo $! > /tmp/clay-bridge.pid
             await this.aiAssistant.initialize();
           } catch (initError) {
             this.terminal.write(`\r\n\x1b[31m[ERROR]\x1b[0m Failed to initialize AI assistant: ${initError}\r\n`);
-            this.writePrompt();
-            return;
+          this.writePrompt();
+          return;
           }
         }
       }
@@ -2615,7 +2728,7 @@ echo $! > /tmp/clay-bridge.pid
     // Detect if command needs root or privileged access
     const needsRoot = this.isRootCommand(command);
     const needsPrivileged = this.isPrivilegedCommand(command);
-    
+
     // Execute command
     if (this.isConnected && this.backend && this.backend.getConnected()) {
       // For root/privileged commands when using bridge, use REST API
@@ -2875,8 +2988,8 @@ echo $! > /tmp/clay-bridge.pid
         } catch (initError) {
           this.terminal.write(`\r\n\x1b[31m[ERROR]\x1b[0m AI initialization failed: ${initError instanceof Error ? initError.message : 'Unknown error'}\r\n`);
           this.terminal.write(`\x1b[33m[INFO]\x1b[0m The JOSIEFIED model is loading. This may take a few moments on first use.\r\n`);
-          this.writePrompt();
-          return;
+        this.writePrompt();
+        return;
         }
       }
     }
@@ -3736,17 +3849,17 @@ function renderLanding(): void {
         <svg class="w-6 h-6 text-blue-400 group-hover:text-blue-300 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
         </svg>
-      </button>
+        </button>
       <button class="sidebar-item w-full p-3 rounded-lg flex items-center justify-center group relative" title="Calendar">
         <svg class="w-6 h-6 text-gray-400 group-hover:text-blue-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-        </svg>
+          </svg>
       </button>
       <button class="sidebar-item w-full p-3 rounded-lg flex items-center justify-center group relative" title="Analytics">
         <svg class="w-6 h-6 text-gray-400 group-hover:text-blue-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
-        </svg>
-      </button>
+          </svg>
+        </button>
       <div class="h-px bg-white/10 my-2"></div>
       <button class="sidebar-item w-full p-3 rounded-lg flex items-center justify-center group relative" title="Settings">
         <svg class="w-6 h-6 text-gray-400 group-hover:text-blue-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -3771,7 +3884,7 @@ function renderLanding(): void {
         <div>
           <h1 class="text-3xl font-bold text-white mb-1">Terminal Management</h1>
           <p class="text-gray-400 text-sm">Track and improve your terminal status</p>
-        </div>
+          </div>
         <div class="flex items-center gap-4">
           <div class="flex items-center gap-2 px-4 py-2 glass rounded-lg">
             <div class="w-8 h-8 rounded-full bg-gradient-to-br from-blue-600 to-orange-600 flex items-center justify-center text-white font-semibold text-sm">JB</div>
@@ -3779,7 +3892,7 @@ function renderLanding(): void {
             <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
             </svg>
-          </div>
+        </div>
           <button class="p-2 glass rounded-lg hover:bg-white/5 transition-all">
             <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
@@ -3793,7 +3906,7 @@ function renderLanding(): void {
               <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/>
             </svg>
           </button>
-        </div>
+      </div>
       </div>
     </header>
 
@@ -3805,40 +3918,40 @@ function renderLanding(): void {
           <h1 class="text-6xl md:text-7xl font-bold text-white mb-4 tracking-tight">
             Professional Terminal
             <span class="block bg-gradient-to-r from-blue-400 to-orange-400 bg-clip-text text-transparent">for the Web</span>
-          </h1>
+      </h1>
           <p class="text-xl text-gray-300 mb-8 max-w-3xl leading-relaxed">
-            Clay gives you a powerful, AI-augmented terminal experience right in your browser. Full system access, tab completion, history search, and more.
-          </p>
+        Clay gives you a powerful, AI-augmented terminal experience right in your browser. Full system access, tab completion, history search, and more.
+      </p>
           <div class="flex gap-4 flex-wrap">
             <button id="open-terminal" class="px-8 py-4 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white rounded-xl font-semibold text-lg shadow-lg hover:shadow-xl transition-all transform hover:scale-[1.02] border border-blue-500/50">
-              Open Terminal
-            </button>
+          Open Terminal
+        </button>
             <a href="https://www.npmjs.com/package/clay-util" target="_blank" class="px-8 py-4 glass hover:bg-white/5 text-white rounded-xl font-semibold text-lg transition-all transform hover:scale-[1.02]">
-              Documentation
-            </a>
+          Documentation
+        </a>
             <button id="install-pwa-btn-hero" class="px-8 py-4 bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-500 hover:to-orange-600 text-white rounded-xl font-semibold text-lg shadow-lg hover:shadow-xl transition-all transform hover:scale-[1.02] border border-orange-500/50" style="display: none;">
-              📱 Install App
-            </button>
-          </div>
-        </div>
+          📱 Install App
+        </button>
+      </div>
+    </div>
 
         <!-- Dashboard Cards Grid -->
         <div class="grid gap-6 md:grid-cols-2 lg:grid-cols-3 mb-8">
           <!-- Clock Card -->
           <div class="glass rounded-2xl p-6 card-glow-blue">
-            <h2 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-              <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-              </svg>
+          <h2 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+            <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
               Current Time
-            </h2>
+          </h2>
             <div id="clock" class="text-4xl font-bold text-white mb-2 bg-gradient-to-r from-blue-400 to-blue-300 bg-clip-text text-transparent"></div>
-            <div id="date" class="text-sm text-gray-400"></div>
-          </div>
+          <div id="date" class="text-sm text-gray-400"></div>
+        </div>
 
           <!-- Terminal Stats Card -->
           <div class="glass rounded-2xl p-6 card-glow-orange">
-            <h2 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+          <h2 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
               <svg class="w-5 h-5 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
               </svg>
@@ -3852,27 +3965,27 @@ function renderLanding(): void {
           <div class="glass rounded-2xl p-6 card-glow-blue md:col-span-2 lg:col-span-1">
             <h2 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
               <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
-              </svg>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+            </svg>
               Latest Features
-            </h2>
-            <ul class="space-y-3 text-gray-300" id="updates-list">
-              <li class="flex items-start gap-3">
-                <span class="text-blue-400 mt-1 font-bold">▸</span>
+          </h2>
+          <ul class="space-y-3 text-gray-300" id="updates-list">
+            <li class="flex items-start gap-3">
+              <span class="text-blue-400 mt-1 font-bold">▸</span>
                 <span><span class="text-white font-medium">Tab Completion</span> - Press Tab for autocomplete</span>
-              </li>
-              <li class="flex items-start gap-3">
+            </li>
+            <li class="flex items-start gap-3">
                 <span class="text-orange-400 mt-1 font-bold">▸</span>
                 <span><span class="text-white font-medium">History Search</span> - Ctrl+R for command search</span>
-              </li>
-              <li class="flex items-start gap-3">
-                <span class="text-blue-400 mt-1 font-bold">▸</span>
+            </li>
+            <li class="flex items-start gap-3">
+              <span class="text-blue-400 mt-1 font-bold">▸</span>
                 <span><span class="text-white font-medium">AI Integration</span> - JOSIEFIED model powered</span>
-              </li>
-            </ul>
-          </div>
+            </li>
+          </ul>
         </div>
       </div>
+    </div>
     </main>
   `;
 
@@ -3966,18 +4079,18 @@ function renderLanding(): void {
     const timeEl = document.getElementById('clock');
     const dateEl = document.getElementById('date');
     if (timeEl) {
-      timeEl.textContent = now.toLocaleTimeString();
+    timeEl.textContent = now.toLocaleTimeString();
     }
     if (dateEl) {
-      dateEl.textContent = now.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-    }
+    dateEl.textContent = now.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  }
   }
   // Only start clock if elements exist
   const timeEl = document.getElementById('clock');
   const dateEl = document.getElementById('date');
   if (timeEl && dateEl) {
-    tickClock();
-    setInterval(tickClock, 1000);
+  tickClock();
+  setInterval(tickClock, 1000);
   }
 }
 
@@ -3991,9 +4104,9 @@ function renderTerminalView(): void {
     <aside class="sidebar w-20 flex flex-col items-center py-6 relative z-10">
       <button id="back-home" class="mb-8 w-12 h-12 rounded-xl glass flex items-center justify-center group hover:bg-white/5 transition-all" title="Back to Dashboard">
         <svg class="w-6 h-6 text-gray-400 group-hover:text-blue-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
-        </svg>
-      </button>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+            </svg>
+          </button>
       <nav class="flex-1 flex flex-col gap-4 w-full px-2">
         <button class="sidebar-item active w-full p-3 rounded-lg flex items-center justify-center group relative" title="Terminal">
           <svg class="w-6 h-6 text-blue-400 group-hover:text-blue-300 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -4062,26 +4175,26 @@ function renderTerminalView(): void {
             <div id="cpu-usage" class="px-3 py-1.5 rounded-lg glass">
               <span id="cpu-text" class="text-xs text-gray-300 font-medium">CPU: --</span>
             </div>
-          </div>
-          <div class="flex items-center gap-2">
+            </div>
+        <div class="flex items-center gap-2">
             <select id="model-select" class="px-3 py-1.5 glass rounded-lg text-xs font-medium cursor-pointer transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/50" style="border: 1px solid rgba(255, 255, 255, 0.1);">
               <option value="q4f16_1">JOSIEFIED Q4 (Fast)</option>
               <option value="q4f32_1">JOSIEFIED Q4 F32</option>
               <option value="q8f16_1">JOSIEFIED Q8 (Better)</option>
               <option value="f16">JOSIEFIED F16 (Best)</option>
-            </select>
+          </select>
             <button id="theme-toggle-terminal" class="p-2 rounded-lg glass hover:bg-white/5 transition-all">
-              <svg id="sun-icon-terminal" class="w-4 h-4 text-gray-400 dark:hidden" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clip-rule="evenodd"/>
-              </svg>
-              <svg id="moon-icon-terminal" class="w-4 h-4 text-gray-400 hidden dark:block" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/>
-              </svg>
-            </button>
-          </div>
+            <svg id="sun-icon-terminal" class="w-4 h-4 text-gray-400 dark:hidden" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clip-rule="evenodd"/>
+            </svg>
+            <svg id="moon-icon-terminal" class="w-4 h-4 text-gray-400 hidden dark:block" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/>
+            </svg>
+          </button>
         </div>
       </div>
-      
+    </div>
+    
       <!-- Terminal Container -->
       <div class="flex-1 overflow-hidden p-6 relative">
         <div class="absolute inset-0 bg-gradient-to-br from-blue-600/3 via-blue-500/3 to-orange-600/3 rounded-3xl blur-2xl"></div>
@@ -4100,28 +4213,28 @@ function renderTerminalView(): void {
       toggleDarkMode();
       // Update icons after toggle
       setTimeout(() => {
-        const sunIcon = document.getElementById('sun-icon-terminal');
-        const moonIcon = document.getElementById('moon-icon-terminal');
-        if (sunIcon && moonIcon) {
+    const sunIcon = document.getElementById('sun-icon-terminal');
+    const moonIcon = document.getElementById('moon-icon-terminal');
+    if (sunIcon && moonIcon) {
           const isDark = document.documentElement.classList.contains('dark');
-          if (isDark) {
-            sunIcon.classList.add('hidden');
-            moonIcon.classList.remove('hidden');
-          } else {
-            sunIcon.classList.remove('hidden');
-            moonIcon.classList.add('hidden');
-          }
-        }
+      if (isDark) {
+        sunIcon.classList.add('hidden');
+        moonIcon.classList.remove('hidden');
+      } else {
+        sunIcon.classList.remove('hidden');
+        moonIcon.classList.add('hidden');
+      }
+    }
       }, 10);
     });
   }
 
   const back = document.getElementById('back-home') as HTMLButtonElement;
   if (back) {
-    back.addEventListener('click', () => {
-      location.hash = '';
-      renderLanding();
-    });
+  back.addEventListener('click', () => {
+    location.hash = '';
+    renderLanding();
+  });
   }
 
   // Sidebar button handlers
@@ -4199,7 +4312,7 @@ function renderTerminalView(): void {
     if (terminalElement && terminalElement.offsetParent !== null) {
       try {
         new ClayWebTerminal();
-      } catch (e) {
+    } catch (e) {
         console.error('Failed to initialize terminal:', e);
         // Retry once after a delay
         setTimeout(() => {

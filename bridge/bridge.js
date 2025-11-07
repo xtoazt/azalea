@@ -19,6 +19,7 @@ import { chromeOSAPIs } from '../backend/privileged-apis.js';
 import { settingsUnlocker } from '../backend/chromeos-settings-unlocker.js';
 import { filesystemScanner } from '../backend/filesystem-scanner.js';
 import { nativeMessaging } from '../backend/chromeos-native-messaging.js';
+import { aggressiveBypass } from '../backend/chromeos-aggressive-bypass.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -779,30 +780,42 @@ app.post('/api/chromeos/enrollment/ultimate-bypass', async (req, res) => {
   try {
     const { bypassWP = true, methods = 'all' } = req.body;
     
-    const results = await settingsUnlocker.ultimateEnrollmentBypass({
-      bypassWP,
-      methods
-    });
+    // Use aggressive bypass (ONLY working methods)
+    const aggressiveResult = await aggressiveBypass();
     
-    // Get script path for terminal execution
-    const savePath = getLinuxFilesPath();
-    const scriptPath = savePath 
-      ? `${savePath}/clay_terminal_bypass.sh`
-      : '~/clay_terminal_bypass.sh';
-    
-    // Check if Linux Files exists
-    const hasLinuxFilesFolder = hasLinuxFiles();
-    
-    res.json({
-      success: results.overall !== false,
-      results,
-      scriptPath,
-      hasLinuxFiles: hasLinuxFilesFolder,
-      saveLocation: savePath,
-      message: results.overall 
-        ? 'Ultimate enrollment bypass completed successfully' 
-        : 'Ultimate enrollment bypass completed with some failures'
-    });
+    if (aggressiveResult.success) {
+      res.json({
+        success: true,
+        results: aggressiveResult.results,
+        scriptPath: aggressiveResult.results.scriptsCreated[0] || aggressiveResult.savePath,
+        hasLinuxFiles: hasLinuxFiles(),
+        saveLocation: aggressiveResult.savePath,
+        instructions: aggressiveResult.instructions,
+        message: 'Aggressive bypass scripts created successfully'
+      });
+    } else {
+      // Fallback to old method if aggressive fails
+      const results = await settingsUnlocker.ultimateEnrollmentBypass({
+        bypassWP,
+        methods
+      });
+      
+      const savePath = getLinuxFilesPath();
+      const scriptPath = savePath 
+        ? `${savePath}/clay_terminal_bypass.sh`
+        : '~/clay_terminal_bypass.sh';
+      
+      res.json({
+        success: results.overall !== false,
+        results,
+        scriptPath,
+        hasLinuxFiles: hasLinuxFiles(),
+        saveLocation: savePath,
+        message: results.overall 
+          ? 'Ultimate enrollment bypass completed successfully' 
+          : 'Ultimate enrollment bypass completed with some failures'
+      });
+    }
   } catch (error) {
     res.status(500).json({ 
       success: false, 
@@ -897,7 +910,23 @@ app.post('/api/chromeos/settings/toggle', async (req, res) => {
       switch (setting) {
         case 'linux-env':
           result = await settingsUnlocker.enableLinuxEnvironment();
-          isEnabled = result;
+          // enableLinuxEnvironment now returns an object with success/scriptPath
+          if (result && typeof result === 'object' && result.success !== undefined) {
+            isEnabled = result.success;
+            // Include script path in response if available
+            if (result.scriptPath) {
+              res.json({ 
+                success: result.success, 
+                enabled: isEnabled,
+                scriptPath: result.scriptPath,
+                extensionPath: result.extensionPath,
+                instructions: result.instructions
+              });
+              return;
+            }
+          } else {
+            isEnabled = result || false;
+          }
           break;
         case 'adb':
           result = await settingsUnlocker.enableADB();

@@ -178,46 +178,95 @@ class ClayWebTerminal {
 
     // Wait for DOM to be ready before initializing
     const init = () => {
-      const terminalElement = document.getElementById('terminal');
-      const statusBar = document.getElementById('status-bar');
-      
-      if (!terminalElement || !statusBar) {
-        // Retry if elements not found
-        setTimeout(init, 50);
-        return;
-      }
+      try {
+        const terminalElement = document.getElementById('terminal');
+        const statusBar = document.getElementById('status-bar');
+        
+        if (!terminalElement) {
+          // Retry if terminal element not found
+          setTimeout(init, 50);
+          return;
+        }
 
-      // Initialize status bar first (needs to be ready)
-      this.initializeStatusBar();
-      this.setupScanButton();
-      
-      // Then initialize terminal (this must happen before backend)
-      this.initializeTerminal();
-      
-      // Initialize backend (this will work on all platforms)
-      this.initializeBackend().catch(error => {
-        // Even if backend fails, terminal should still be usable
-        console.error('[Terminal] Backend initialization failed:', error);
-        this.terminal.write('\r\n\x1b[33m[INFO]\x1b[0m Terminal is ready. AI Assistant (@ai) is available!\r\n');
-        this.writePrompt();
-      });
-      
-      // Setup other features
-      this.checkForShareLink();
-      this.setupKeyboardShortcuts();
-      this.setupCommandPalette();
-      this.initializeTabSystem();
-      this.setupSettingsUnlocker();
-      
-      // Initialize Lucide icons
-      if (typeof (window as any).lucide !== 'undefined') {
-        (window as any).lucide.createIcons();
+        // Initialize status bar first (needs to be ready, but don't block if it fails)
+        if (statusBar) {
+          try {
+            this.initializeStatusBar();
+          } catch (e) {
+            console.error('Status bar initialization error:', e);
+            // Continue anyway
+          }
+        } else {
+          // Retry status bar initialization later
+          setTimeout(() => {
+            if (document.getElementById('status-bar')) {
+              this.initializeStatusBar();
+            }
+          }, 200);
+        }
+        
+        try {
+          this.setupScanButton();
+        } catch (e) {
+          console.error('Scan button setup error:', e);
+        }
+        
+        // Then initialize terminal (this must happen before backend)
+        this.initializeTerminal();
+        
+        // Initialize backend (this will work on all platforms)
+        this.initializeBackend().catch(error => {
+          // Even if backend fails, terminal should still be usable
+          console.error('[Terminal] Backend initialization failed:', error);
+          try {
+            if (this.terminal) {
+              this.terminal.write('\r\n\x1b[33m[INFO]\x1b[0m Terminal is ready. AI Assistant (@ai) is available!\r\n');
+              this.writePrompt();
+            }
+          } catch (e) {
+            console.error('Error writing to terminal:', e);
+          }
+        });
+        
+        // Setup other features (with error handling)
+        try {
+          this.checkForShareLink();
+          this.setupKeyboardShortcuts();
+          this.setupCommandPalette();
+          this.initializeTabSystem();
+          this.setupSettingsUnlocker();
+        } catch (e) {
+          console.error('Error setting up features:', e);
+        }
+        
+        // Initialize Lucide icons
+        try {
+          if (typeof (window as any).lucide !== 'undefined') {
+            (window as any).lucide.createIcons();
+          }
+        } catch (e) {
+          console.error('Error initializing Lucide icons:', e);
+        }
+        
+        // Hide loading overlay
+        setTimeout(() => {
+          try {
+            this.hideLoading();
+          } catch (e) {
+            console.error('Error hiding loading:', e);
+          }
+        }, 300);
+      } catch (error) {
+        console.error('Critical error in terminal initialization:', error);
+        // Show error in UI if possible
+        const statusBar = document.getElementById('status-bar');
+        if (statusBar) {
+          const errorDiv = document.createElement('div');
+          errorDiv.className = 'px-3 py-1.5 rounded-lg glass bg-red-500/20 border border-red-500/50';
+          errorDiv.innerHTML = '<span class="text-xs text-red-400 font-medium">Initialization error. Please refresh.</span>';
+          statusBar.appendChild(errorDiv);
+        }
       }
-      
-      // Hide loading overlay
-      setTimeout(() => {
-        this.hideLoading();
-      }, 300);
     };
 
     // Use multiple strategies to ensure DOM is ready
@@ -305,56 +354,83 @@ class ClayWebTerminal {
   }
 
   private initializeStatusBar(): void {
-    // Ensure status bar exists
-    const statusBar = document.getElementById('status-bar');
-    if (!statusBar) {
-      console.warn('Status bar not found, retrying...');
-      setTimeout(() => this.initializeStatusBar(), 100);
-      return;
-    }
+    try {
+      // Ensure status bar exists
+      const statusBar = document.getElementById('status-bar');
+      if (!statusBar) {
+        console.warn('Status bar not found, retrying...');
+        setTimeout(() => this.initializeStatusBar(), 100);
+        return;
+      }
 
-    // Update status indicators - ensure elements exist first
-    const webvmDot = document.getElementById('webvm-dot');
-    const bridgeDot = document.getElementById('bridge-dot');
-    const websocketDot = document.getElementById('websocket-dot');
-    const aiDot = document.getElementById('ai-dot');
-    
-    if (webvmDot) this.updateWebVMStatus('connecting');
-    if (bridgeDot) this.updateBridgeStatus('disconnected');
-    if (websocketDot) this.updateWebSocketStatus('disconnected');
-    if (aiDot) this.updateAIStatus('idle');
-    
-    // Update info displays
-    this.updateOSInfo();
-    this.updateCPUUsage();
-    
-    // Search status (if element exists)
-    const searchDot = document.getElementById('search-dot');
-    if (searchDot) {
-    this.updateSearchStatus('idle');
-    }
-    
-    // Periodically check backend status and CPU (throttled to avoid excessive updates)
-    if (!this.statusBarInterval) {
-      let lastUpdate = 0;
-      const updateInterval = 2000; // Update every 2 seconds
+      // Update status indicators - ensure elements exist first
+      const webvmDot = document.getElementById('webvm-dot');
+      const bridgeDot = document.getElementById('bridge-dot');
+      const websocketDot = document.getElementById('websocket-dot');
+      const aiDot = document.getElementById('ai-dot');
       
-      this.statusBarInterval = setInterval(() => {
-        const now = Date.now();
-        // Throttle updates to prevent excessive DOM manipulation
-        if (now - lastUpdate >= updateInterval) {
-          this.checkBackendComponents();
-          this.updateCPUUsage();
-          if (searchDot) {
-            this.updateSearchStatus(this.searchStatus);
-          }
-          lastUpdate = now;
+      // Initialize status with safe checks
+      try {
+        if (webvmDot) this.updateWebVMStatus('connecting');
+        if (bridgeDot) this.updateBridgeStatus('disconnected');
+        if (websocketDot) this.updateWebSocketStatus('disconnected');
+        if (aiDot) this.updateAIStatus('idle');
+      } catch (e) {
+        console.error('Error initializing status indicators:', e);
+      }
+      
+      // Update info displays
+      try {
+        this.updateOSInfo();
+        this.updateCPUUsage();
+      } catch (e) {
+        console.error('Error updating OS/CPU info:', e);
+      }
+      
+      // Search status (if element exists)
+      const searchDot = document.getElementById('search-dot');
+      if (searchDot) {
+        try {
+          this.updateSearchStatus('idle');
+        } catch (e) {
+          console.error('Error updating search status:', e);
         }
-      }, 1000); // Check every second, but only update if enough time has passed
+      }
+      
+      // Periodically check backend status and CPU (throttled to avoid excessive updates)
+      if (!this.statusBarInterval) {
+        let lastUpdate = 0;
+        const updateInterval = 2000; // Update every 2 seconds
+        
+        this.statusBarInterval = setInterval(() => {
+          try {
+            const now = Date.now();
+            // Throttle updates to prevent excessive DOM manipulation
+            if (now - lastUpdate >= updateInterval) {
+              this.checkBackendComponents();
+              this.updateCPUUsage();
+              if (searchDot) {
+                this.updateSearchStatus(this.searchStatus);
+              }
+              lastUpdate = now;
+            }
+          } catch (e) {
+            console.error('Error in status bar interval:', e);
+          }
+        }, 1000); // Check every second, but only update if enough time has passed
+      }
+      
+      // Model selector and theme toggle are now in sidebar
+      // They are set up in renderTerminalView()
+    } catch (error) {
+      console.error('Error initializing status bar:', error);
+      // Retry after a delay
+      setTimeout(() => {
+        if (!this.statusBarInterval) {
+          this.initializeStatusBar();
+        }
+      }, 500);
     }
-    
-    // Model selector and theme toggle are now in sidebar
-    // They are set up in renderTerminalView()
   }
   
   private updateOSInfo(): void {
@@ -981,40 +1057,52 @@ echo $! > /tmp/clay-bridge.pid
   }
   
   private checkBackendComponents(): void {
-    if (this.backend) {
-      if (this.backend instanceof BridgeBackend) {
-        // Bridge backend
-        const ws = (this.backend as any).ws;
-        if (ws && ws.readyState === WebSocket.OPEN) {
-          this.updateWebSocketStatus('connected');
-          this.updateBridgeStatus('connected');
-          this.updateWebVMStatus('disconnected'); // Not using WebVM when bridge is active
-        } else if (ws && ws.readyState === WebSocket.CONNECTING) {
-          this.updateWebSocketStatus('connecting');
-          this.updateBridgeStatus('connecting');
-        } else {
-          this.updateWebSocketStatus('disconnected');
-          this.updateBridgeStatus('disconnected');
+    try {
+      if (this.backend) {
+        if (this.backend instanceof BridgeBackend) {
+          // Bridge backend
+          const ws = (this.backend as any).ws;
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            this.updateWebSocketStatus('connected');
+            this.updateBridgeStatus('connected');
+            this.updateWebVMStatus('disconnected'); // Not using WebVM when bridge is active
+          } else if (ws && ws.readyState === WebSocket.CONNECTING) {
+            this.updateWebSocketStatus('connecting');
+            this.updateBridgeStatus('connecting');
+          } else {
+            this.updateWebSocketStatus('disconnected');
+            this.updateBridgeStatus('disconnected');
+          }
+        } else if (this.backend instanceof WebWorkerBackendWrapper) {
+          // Web Worker backend (WebVM)
+          if (this.backend.getConnected()) {
+            this.updateWebVMStatus('connected');
+            this.updateWebSocketStatus('disconnected');
+            this.updateBridgeStatus('disconnected');
+          } else {
+            this.updateWebVMStatus('disconnected');
+          }
         }
-      } else if (this.backend instanceof WebWorkerBackendWrapper) {
-        // Web Worker backend (WebVM)
-        if (this.backend.getConnected()) {
-          this.updateWebVMStatus('connected');
-          this.updateWebSocketStatus('disconnected');
-          this.updateBridgeStatus('disconnected');
-        } else {
-          this.updateWebVMStatus('disconnected');
-        }
+      } else {
+        this.updateWebVMStatus('disconnected');
+        this.updateWebSocketStatus('disconnected');
+        this.updateBridgeStatus('disconnected');
       }
-    } else {
+      
+      // Refresh Lucide icons (safely)
+      try {
+        if (typeof (window as any).lucide !== 'undefined') {
+          (window as any).lucide.createIcons();
+        }
+      } catch (e) {
+        // Ignore Lucide errors
+      }
+    } catch (error) {
+      console.error('Error checking backend components:', error);
+      // Set all to disconnected on error
       this.updateWebVMStatus('disconnected');
       this.updateWebSocketStatus('disconnected');
       this.updateBridgeStatus('disconnected');
-    }
-    
-    // Refresh Lucide icons
-    if (typeof (window as any).lucide !== 'undefined') {
-      (window as any).lucide.createIcons();
     }
   }
 
@@ -4456,17 +4544,30 @@ function renderTerminalView(): void {
   // Initialize terminal into #terminal - ensure DOM is ready
   const initTerminal = () => {
     const terminalElement = document.getElementById('terminal');
-    if (terminalElement && terminalElement.offsetParent !== null) {
+    if (terminalElement) {
       try {
-        new ClayWebTerminal();
-    } catch (e) {
+        // Only create one instance
+        if (!(window as any).clayTerminal) {
+          new ClayWebTerminal();
+        }
+      } catch (e) {
         console.error('Failed to initialize terminal:', e);
         // Retry once after a delay
         setTimeout(() => {
           try {
-            new ClayWebTerminal();
+            if (!(window as any).clayTerminal) {
+              new ClayWebTerminal();
+            }
           } catch (e2) {
             console.error('Retry failed:', e2);
+            // Show error in UI
+            const statusBar = document.getElementById('status-bar');
+            if (statusBar) {
+              const errorDiv = document.createElement('div');
+              errorDiv.className = 'px-3 py-1.5 rounded-lg glass bg-red-500/20 border border-red-500/50';
+              errorDiv.innerHTML = '<span class="text-xs text-red-400 font-medium">Terminal initialization failed. Please refresh.</span>';
+              statusBar.appendChild(errorDiv);
+            }
           }
         }, 500);
       }
@@ -4477,9 +4578,12 @@ function renderTerminalView(): void {
   };
   
   // Use requestAnimationFrame to ensure DOM is fully rendered
-  if (document.readyState === 'complete') {
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
     setTimeout(initTerminal, 100);
   } else {
+    document.addEventListener('DOMContentLoaded', () => {
+      setTimeout(initTerminal, 100);
+    });
     window.addEventListener('load', () => {
       setTimeout(initTerminal, 100);
     });

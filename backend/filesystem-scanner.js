@@ -96,7 +96,7 @@ export class FilesystemScanner {
     ]);
 
     try {
-      const files: FileInfo[] = [];
+      const files = [];
       let totalFiles = 0;
       let totalDirectories = 0;
       let totalSize = 0;
@@ -135,7 +135,7 @@ export class FilesystemScanner {
       const fileTree = this.buildFileTree(files, rootPath);
 
       const scanTime = Date.now() - startTime;
-      const result: ScanResult = {
+      const result = {
         totalFiles,
         totalDirectories,
         totalSize,
@@ -234,9 +234,9 @@ export class FilesystemScanner {
         const parent = pathMap.get(parentPath);
         if (parent && parent.type === 'directory') {
           if (!parent.children) parent.children = [];
-          parent.children.push(pathMap.get(file.path)!);
+          parent.children.push(pathMap.get(file.path));
         } else if (parentPath === rootPath || parentPath === '/') {
-          tree.push(pathMap.get(file.path)!);
+          tree.push(pathMap.get(file.path));
         }
       } else if (file.path === rootPath || file.path === '/') {
         tree.push(file);
@@ -284,7 +284,7 @@ export class FilesystemScanner {
   /**
    * Clear scan cache
    */
-  clearCache(): void {
+  clearCache() {
     this.scanCache.clear();
   }
 

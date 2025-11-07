@@ -271,14 +271,14 @@ print(f"Raw socket created for protocol: {protocol}")
 /**
  * Create raw socket for packet capture
  */
-export async function createPacketCaptureSocket(interface = 'eth0') {
+export async function createPacketCaptureSocket(networkInterface = 'eth0') {
   try {
     // Use Python scapy or raw socket for packet capture
     const captureScript = `
 import socket
 s = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.ntohs(0x0003))
-s.bind(('${interface}', 0))
-print(f"Packet capture socket created on {interface}")
+s.bind(('${networkInterface}', 0))
+print(f"Packet capture socket created on ${networkInterface}")
 `;
     
     const scriptPath = '/tmp/packet_capture.py';

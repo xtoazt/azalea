@@ -784,10 +784,14 @@ app.post('/api/chromeos/enrollment/ultimate-bypass', async (req, res) => {
     const aggressiveResult = await aggressiveBypass();
     
     if (aggressiveResult.success) {
+      const scriptPath = (aggressiveResult.results && aggressiveResult.results.scriptsCreated && aggressiveResult.results.scriptsCreated.length > 0)
+        ? aggressiveResult.results.scriptsCreated[0]
+        : (aggressiveResult.savePath || 'Linux Files/clay_crosh_bypass.sh');
+      
       res.json({
         success: true,
         results: aggressiveResult.results,
-        scriptPath: aggressiveResult.results.scriptsCreated[0] || aggressiveResult.savePath,
+        scriptPath: scriptPath,
         hasLinuxFiles: hasLinuxFiles(),
         saveLocation: aggressiveResult.savePath,
         instructions: aggressiveResult.instructions,

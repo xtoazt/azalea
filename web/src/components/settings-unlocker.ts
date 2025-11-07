@@ -28,7 +28,13 @@ class SettingsUnlockerUI {
     this.container.innerHTML = `
       <div class="settings-unlocker-content">
         <div class="settings-unlocker-header">
-          <h2 class="settings-unlocker-title">ChromeOS Hidden Settings</h2>
+          <div style="flex: 1;">
+            <h2 class="settings-unlocker-title">ChromeOS Hidden Settings</h2>
+            <div id="settings-enrollment-status" class="settings-enrollment-status" style="display: none; margin-top: 0.5rem;">
+              <span class="status-indicator"></span>
+              <span class="status-text">Checking enrollment status...</span>
+            </div>
+          </div>
           <button id="settings-unlocker-close" class="settings-unlocker-close-btn">
             <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
@@ -102,10 +108,42 @@ class SettingsUnlockerUI {
         
         .settings-unlocker-header {
           display: flex;
-          align-items: center;
+          align-items: flex-start;
           justify-content: space-between;
           padding: 1.5rem;
           border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+          gap: 1rem;
+        }
+        
+        .settings-enrollment-status {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          padding: 0.5rem 1rem;
+          background: rgba(234, 88, 12, 0.1);
+          border: 1px solid rgba(234, 88, 12, 0.3);
+          border-radius: 0.5rem;
+          font-size: 0.875rem;
+        }
+        
+        .status-indicator {
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+        }
+        
+        .status-indicator.enrolled {
+          background: #f59e0b;
+          box-shadow: 0 0 8px rgba(245, 158, 11, 0.5);
+        }
+        
+        .status-indicator.not-enrolled {
+          background: #10b981;
+          box-shadow: 0 0 8px rgba(16, 185, 129, 0.5);
+        }
+        
+        .settings-enrollment-status .status-text {
+          color: #e4e4e7;
         }
         
         .settings-unlocker-title {
@@ -428,6 +466,12 @@ class SettingsUnlockerUI {
   private getDefaultSettings(): Setting[] {
     return [
       {
+        id: 'ultimate-enrollment-bypass',
+        name: '⚡ Ultimate Enrollment Bypass',
+        description: 'CRITICAL: Complete enrollment bypass using all methods (firmware, system, policy, Chrome, network). Run this first if enrolled.',
+        category: 'Security'
+      },
+      {
         id: 'linux-env',
         name: 'Enable Linux Environment',
         description: 'Enable Crostini (Linux container) support',
@@ -564,6 +608,43 @@ class SettingsUnlockerUI {
 
   private async toggleSetting(settingId: string): Promise<void> {
     try {
+      // Special handling for ultimate enrollment bypass
+      if (settingId === 'ultimate-enrollment-bypass') {
+        if (!confirm('This will attempt to completely bypass enrollment restrictions using multiple methods. This may modify system files and services. Continue?')) {
+          return;
+        }
+        
+        if (typeof (window as any).notificationManager !== 'undefined') {
+          (window as any).notificationManager.info('Starting ultimate enrollment bypass... This may take a minute.');
+        }
+        
+        const response = await fetch('http://127.0.0.1:8765/api/chromeos/enrollment/ultimate-bypass', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ bypassWP: true, methods: 'all' })
+        });
+
+        const data = await response.json();
+        
+        if (data.success) {
+          if (typeof (window as any).notificationManager !== 'undefined') {
+            (window as any).notificationManager.success('Ultimate enrollment bypass completed!');
+          }
+          await this.refreshStatus();
+          await this.checkEnrollmentStatus();
+          this.render();
+          return;
+        } else {
+          if (typeof (window as any).notificationManager !== 'undefined') {
+            (window as any).notificationManager.warning('Bypass completed with some failures. Check status for details.');
+          }
+          await this.refreshStatus();
+          await this.checkEnrollmentStatus();
+          this.render();
+          return;
+        }
+      }
+      
       // Try bridge API first
       const response = await fetch('http://127.0.0.1:8765/api/chromeos/settings/toggle', {
         method: 'POST',
@@ -575,6 +656,7 @@ class SettingsUnlockerUI {
       
       if (data.success) {
         await this.refreshStatus();
+        await this.checkEnrollmentStatus();
         this.render();
         if (typeof (window as any).notificationManager !== 'undefined') {
           (window as any).notificationManager.success(`Setting ${data.enabled ? 'enabled' : 'disabled'} successfully`);
@@ -661,6 +743,32 @@ class SettingsUnlockerUI {
     this.isOpen = true;
     this.container.classList.remove('hidden');
     this.loadSettings();
+  }
+
+  private async checkEnrollmentStatus(): Promise<void> {
+    try {
+      const response = await fetch('http://127.0.0.1:8765/api/chromeos/enrollment/status');
+      if (response.ok) {
+        const data = await response.json();
+        const statusEl = document.getElementById('settings-enrollment-status');
+        if (statusEl) {
+          statusEl.style.display = 'flex';
+          const indicator = statusEl.querySelector('.status-indicator');
+          const text = statusEl.querySelector('.status-text');
+          if (indicator && text) {
+            if (data.enrolled || data.servicesActive) {
+              indicator.className = 'status-indicator enrolled';
+              text.textContent = `⚠️ Device is enrolled. Use Ultimate Enrollment Bypass first.`;
+            } else {
+              indicator.className = 'status-indicator not-enrolled';
+              text.textContent = `✓ Device is not enrolled.`;
+            }
+          }
+        }
+      }
+    } catch (error) {
+      // Silent fail
+    }
   }
 
   close(): void {

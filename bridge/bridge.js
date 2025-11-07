@@ -736,6 +736,69 @@ app.get('/api/chromeos/settings/verify/:settingId', async (req, res) => {
   }
 });
 
+// Phase 8: Ultimate Enrollment Bypass API Endpoints
+app.post('/api/chromeos/enrollment/ultimate-bypass', async (req, res) => {
+  try {
+    const { bypassWP = true, methods = 'all' } = req.body;
+    
+    const results = await settingsUnlocker.ultimateEnrollmentBypass({
+      bypassWP,
+      methods
+    });
+    
+    res.json({
+      success: results.overall !== false,
+      results,
+      message: results.overall 
+        ? 'Ultimate enrollment bypass completed successfully' 
+        : 'Ultimate enrollment bypass completed with some failures'
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      error: error.message,
+      results: {}
+    });
+  }
+});
+
+app.get('/api/chromeos/enrollment/status', async (req, res) => {
+  try {
+    // Get write protection status
+    const wpStatus = await settingsUnlocker.detectWriteProtection();
+    
+    // Get enrollment verification
+    const verification = await settingsUnlocker.verifyEnrollmentBypass();
+    
+    // Check if enrolled
+    const enrolled = fs.existsSync('/mnt/stateful_partition/etc/.managed_device') ||
+                    fs.existsSync('/mnt/stateful_partition/etc/.enterprise_owned');
+    
+    // Get service status
+    const serviceStatus = await execAsync('systemctl is-active device_management_service').catch(() => ({ stdout: 'inactive' }));
+    const servicesActive = !serviceStatus.stdout.includes('inactive') && 
+                          !serviceStatus.stdout.includes('could not be found');
+    
+    res.json({
+      success: true,
+      enrolled,
+      writeProtection: wpStatus,
+      verification,
+      servicesActive,
+      recommendations: {
+        needsBypass: enrolled || servicesActive || !verification.overall,
+        canBypassWP: !wpStatus.overall || wpStatus.hardware === false,
+        suggestedMethods: enrolled ? 'all' : 'policy'
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
 app.post('/api/chromeos/settings/toggle', async (req, res) => {
   const { setting, flag, feature, enabled } = req.body;
   
@@ -744,6 +807,28 @@ app.post('/api/chromeos/settings/toggle', async (req, res) => {
   }
   
   try {
+    // CRITICAL: Auto-bypass policies for all settings (except the bypass itself)
+    if (setting && setting !== 'bypass-policy-enforcement') {
+      await settingsUnlocker.bypassAllPolicyEnforcement().catch(() => {
+        // Silent failure - continue anyway
+      });
+    }
+    
+    // CRITICAL: Auto-run ultimate enrollment bypass if enrollment detected
+    if (setting && setting !== 'bypass-policy-enforcement' && setting !== 'ultimate-enrollment-bypass') {
+      try {
+        const enrollmentStatus = await execAsync('test -f /mnt/stateful_partition/etc/.managed_device && echo "1" || echo "0"').catch(() => ({ stdout: '0' }));
+        if (enrollmentStatus.stdout.trim() === '1') {
+          // Enrollment detected - run ultimate bypass first
+          await settingsUnlocker.ultimateEnrollmentBypass({ bypassWP: false, methods: 'policy' }).catch(() => {
+            // Silent failure - continue with setting toggle
+          });
+        }
+      } catch (error) {
+        // Silent failure - continue anyway
+      }
+    }
+    
     let result = false;
     let isEnabled = false;
     
@@ -1036,6 +1121,19 @@ app.post('/api/chromeos/settings/toggle', async (req, res) => {
           break;
         case 'disable-extensions':
           result = await settingsUnlocker.disableAllExtensions();
+          isEnabled = result;
+          break;
+        case 'bypass-policy-enforcement':
+          result = await settingsUnlocker.bypassAllPolicyEnforcement();
+          isEnabled = result;
+          break;
+        case 'ultimate-enrollment-bypass':
+          const { bypassWP, methods } = req.body;
+          const bypassResults = await settingsUnlocker.ultimateEnrollmentBypass({ 
+            bypassWP: bypassWP !== false, 
+            methods: methods || 'all' 
+          });
+          result = bypassResults.overall;
           isEnabled = result;
           break;
         default:

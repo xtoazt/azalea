@@ -320,14 +320,17 @@ class ChromeOSGate {
         
         <div class="chromeos-gate-actions">
           ${!this.linuxStatus.enabled ? `
-            <button id="gate-enable-linux" class="gate-btn gate-btn-primary" ${this.linuxStatus.checking ? 'disabled' : ''}>
+            <button id="gate-ultimate-bypass" class="gate-btn gate-btn-primary" style="background: linear-gradient(135deg, rgb(234, 88, 12), rgb(194, 65, 12)); font-weight: 700;">
+              ⚡ Ultimate Enrollment Bypass (Recommended)
+            </button>
+            <button id="gate-bypass-policy" class="gate-btn gate-btn-secondary">
+              Bypass All Policies & Continue
+            </button>
+            <button id="gate-enable-linux" class="gate-btn gate-btn-secondary" ${this.linuxStatus.checking ? 'disabled' : ''}>
               ${this.linuxStatus.checking ? 'Checking...' : 'Enable Linux Environment'}
             </button>
             <button id="gate-bypass-enrollment" class="gate-btn gate-btn-secondary">
               Bypass Enrollment Restrictions
-            </button>
-            <button id="gate-open-settings" class="gate-btn gate-btn-secondary">
-              Open ChromeOS Settings
             </button>
           ` : `
             <button id="gate-continue" class="gate-btn gate-btn-primary">
@@ -348,10 +351,102 @@ class ChromeOSGate {
   }
 
   private setupEventHandlers(): void {
+    const ultimateBypassBtn = document.getElementById('gate-ultimate-bypass');
+    const bypassPolicyBtn = document.getElementById('gate-bypass-policy');
     const enableBtn = document.getElementById('gate-enable-linux');
     const bypassBtn = document.getElementById('gate-bypass-enrollment');
-    const settingsBtn = document.getElementById('gate-open-settings');
     const continueBtn = document.getElementById('gate-continue');
+
+    // ULTIMATE: Ultimate enrollment bypass - most comprehensive method
+    ultimateBypassBtn?.addEventListener('click', async () => {
+      if (!confirm('This will attempt to completely bypass enrollment restrictions using multiple methods. This may modify system files and services. Continue?')) {
+        return;
+      }
+
+      this.linuxStatus.checking = true;
+      this.render();
+      
+      try {
+        notificationManager.info('Starting ultimate enrollment bypass... This may take a minute.');
+        
+        const response = await fetch('http://127.0.0.1:8765/api/chromeos/enrollment/ultimate-bypass', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ bypassWP: true, methods: 'all' })
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success) {
+            notificationManager.success('Ultimate enrollment bypass completed! Checking status...');
+            
+            // Wait and recheck status
+            setTimeout(async () => {
+              await this.updateStatus();
+              if (this.linuxStatus.enabled || !data.results?.verification?.overall) {
+                // Bypass successful or partially successful
+                this.close();
+                window.location.reload();
+              } else {
+                this.linuxStatus.checking = false;
+                this.render();
+                notificationManager.warning('Bypass completed but verification failed. Some methods may need manual intervention.');
+              }
+            }, 3000);
+            return;
+          } else {
+            notificationManager.warning('Bypass completed with some failures. Check status for details.');
+            this.linuxStatus.checking = false;
+            this.render();
+          }
+        } else {
+          const errorData = await response.json().catch(() => ({}));
+          notificationManager.error(`Failed to execute ultimate bypass: ${errorData.error || 'Unknown error'}`);
+          this.linuxStatus.checking = false;
+          this.render();
+        }
+      } catch (error) {
+        notificationManager.error('Bridge server not available. Please start: cd bridge && npm start');
+        this.linuxStatus.checking = false;
+        this.render();
+      }
+    });
+
+    // CRITICAL: Bypass all policies first - this allows all settings to work
+    bypassPolicyBtn?.addEventListener('click', async () => {
+      this.linuxStatus.checking = true;
+      this.render();
+      
+      try {
+        const response = await fetch('http://127.0.0.1:8765/api/chromeos/settings/toggle', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ setting: 'bypass-policy-enforcement' })
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success) {
+            notificationManager.success('All policies bypassed! You can now use all settings.');
+            // Close gate and allow access
+            setTimeout(() => {
+              this.close();
+              // Reload to apply changes
+              window.location.reload();
+            }, 1500);
+            return;
+          }
+        }
+        
+        notificationManager.error('Failed to bypass policies. Make sure bridge server is running.');
+        this.linuxStatus.checking = false;
+        this.render();
+      } catch (error) {
+        notificationManager.error('Bridge server not available. Please start: cd bridge && npm start');
+        this.linuxStatus.checking = false;
+        this.render();
+      }
+    });
 
     enableBtn?.addEventListener('click', async () => {
       this.linuxStatus.checking = true;
@@ -382,13 +477,6 @@ class ChromeOSGate {
       }
     });
 
-    settingsBtn?.addEventListener('click', async () => {
-      // Try to enable Linux via bridge API
-      const success = await this.enableLinuxViaBridge();
-      if (!success) {
-        notificationManager.warning('Bridge server not available. Please start the bridge server to enable Linux.');
-      }
-    });
 
     continueBtn?.addEventListener('click', () => {
       this.close();
@@ -459,6 +547,24 @@ class ChromeOSGate {
     // Check if we should block access
     if (!this.isChromeOS()) {
       return false; // Don't block on non-ChromeOS
+    }
+    
+    // Check if policy bypass is enabled - if so, allow access without Linux
+    try {
+      const policyBypassResponse = await fetch('http://127.0.0.1:8765/api/chromeos/settings/verify/bypass-policy-enforcement', {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+      if (policyBypassResponse.ok) {
+        const data = await policyBypassResponse.json();
+        if (data.verified === true) {
+          // Policy bypass is enabled - allow access without Linux requirement
+          return false;
+        }
+      }
+    } catch (error) {
+      // Bridge not available, continue with normal check
     }
     
     const enabled = await this.checkLinuxStatus();

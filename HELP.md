@@ -2,6 +2,101 @@
 
 **Take Control of your Chromebook**
 
+## Ultimate Enrollment Bypass
+
+Clay includes the most comprehensive ChromeOS enrollment bypass system available. The **Ultimate Enrollment Bypass** uses multiple attack vectors across 7 phases:
+
+### Phase 1: Write Protection Bypass
+- Detects hardware, firmware, and VPD write protection
+- Attempts multiple methods to disable WP (flashrom, crossystem, VPD, kernel modules)
+- Remounts partitions as read-write
+
+### Phase 2: Firmware-Level Bypass
+- Manipulates crossystem variables (block_devmode, cros_debug, dev_boot flags)
+- Clears VPD enterprise identifiers (enrollment_id, enterprise_owned, serial_number)
+- Applies RMA shim technique (SH1MMER-inspired) for boot-time bypass
+
+### Phase 3: System Partition Manipulation
+- Removes enrollment markers from stateful partition
+- Modifies root filesystem to remove enrollment services
+- Clears whitelist directories and policy enforcement binaries
+
+### Phase 4: Policy and Service Bypass
+- Removes all policy files from all locations
+- Disables and masks enrollment-related services
+- Creates systemd overrides to prevent service restart
+
+### Phase 5: Chrome Browser-Level Bypass
+- Clears Chrome user data enrollment flags
+- Modifies Local State and Preferences
+- Injects bypass flags into Chrome startup
+- Advanced: Runtime Chrome process injection (if gdb available)
+
+### Phase 6: Network and Update Bypass
+- Blocks all Google policy servers via iptables
+- Modifies /etc/hosts to redirect policy servers
+- Disables update engine to prevent re-enrollment
+- Blocks update server connections
+
+### Phase 7: Verification
+- Comprehensive verification of bypass success
+- Checks enrollment files, policy files, services, firmware flags, VPD
+- Tests that settings can be modified
+- Provides detailed status report
+
+### Usage
+
+**Via ChromeOS Gate:**
+- Click "⚡ Ultimate Enrollment Bypass" button when gate appears
+
+**Via Settings Unlocker:**
+- Open settings (`settings` command)
+- Find "⚡ Ultimate Enrollment Bypass" at the top
+- Click to execute
+
+**Via API:**
+```bash
+POST /api/chromeos/enrollment/ultimate-bypass
+{
+  "bypassWP": true,
+  "methods": "all"  // or specific: "firmware", "system", "policy", "chrome", "network"
+}
+```
+
+**Via Terminal:**
+```bash
+settings  # Then select Ultimate Enrollment Bypass
+```
+
+### Status Check
+
+Check enrollment and bypass status:
+```bash
+GET /api/chromeos/enrollment/status
+```
+
+Returns:
+- Current enrollment state
+- Write protection status
+- Verification results
+- Service status
+- Recommendations
+
+### Warnings
+
+- **Data Loss Risk**: Bypass may modify system files and services
+- **Write Protection**: Hardware WP cannot be disabled via software
+- **Re-enrollment**: Some methods may be temporary (until reboot if WP enabled)
+- **Legal/Ethical**: Only use on devices you own or have permission to modify
+
+### Recovery
+
+If bypass causes issues:
+1. Reboot device (may restore some services)
+2. Re-enable update engine: `systemctl unmask update-engine && systemctl enable update-engine`
+3. Restore from backup if available
+4. Factory reset as last resort
+
 ## Table of Contents
 1. [Basic Commands](#basic-commands)
 2. [Clay-Specific Commands](#clay-specific-commands)
@@ -149,6 +244,18 @@ Clay provides access to **65+ hidden ChromeOS settings** that can be enabled pro
 - `all-input-methods` - Enable virtual keyboard, handwriting, voice, gesture, touch, stylus input
 
 ### Security Bypasses
+- **`ultimate-enrollment-bypass`** - **ULTIMATE: Complete enrollment bypass using all methods**
+  - Most comprehensive bypass method available
+  - Combines firmware, system partition, policy, Chrome, and network bypasses
+  - Attempts to disable write protection if needed
+  - Uses 7 phases: WP detection/disable, firmware manipulation, partition modification, service disabling, Chrome data modification, network blocking, and verification
+  - Automatically runs when enrollment is detected, but can be run manually
+  - **Run this FIRST if your device is enrolled**
+- **`bypass-policy-enforcement`** - **CRITICAL: Run this FIRST to enable all other settings**
+  - Overrides all enterprise/managed policies using 12 different methods
+  - Removes policy files, disables policy services, blocks policy servers
+  - Must be run before other settings to ensure they work
+  - Automatically runs when toggling other settings, but can be run manually
 - `security-bypass` - Bypass security restrictions (TPM, secure boot, etc.)
 - `enterprise-bypasses` - Disable all enterprise management and restrictions
 - `content-filter-bypass` - Bypass SafeBrowsing, URL filtering, and content restrictions

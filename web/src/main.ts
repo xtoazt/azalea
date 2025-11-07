@@ -2532,6 +2532,8 @@ echo $! > /tmp/clay-bridge.pid
         this.terminal.write(`    • experimental-features, all-input-methods\r\n\r\n`);
         
         this.terminal.write(`  \x1b[36mSecurity Bypasses:\x1b[0m\r\n`);
+        this.terminal.write(`    • \x1b[1m\x1b[33multimate-enrollment-bypass\x1b[0m - \x1b[31mULTIMATE\x1b[0m: Complete enrollment bypass (7 phases)\r\n`);
+        this.terminal.write(`    • \x1b[1m\x1b[33mbypass-policy-enforcement\x1b[0m - \x1b[31mCRITICAL\x1b[0m: Run this FIRST to enable all other settings\r\n`);
         this.terminal.write(`    • security-bypass, enterprise-bypasses\r\n`);
         this.terminal.write(`    • content-filter-bypass, parental-controls-bypass\r\n`);
         this.terminal.write(`    • privacy-bypass, website-allowlist\r\n`);

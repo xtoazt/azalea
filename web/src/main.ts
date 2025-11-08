@@ -34,6 +34,7 @@ import {
   type BackendInterface
 } from './integrations';
 import { fileManager } from './components/file-manager';
+import { browserAutomation } from './components/browser-automation';
 import './app.css';
 
 // Helper to get hostname (fallback for browser)
@@ -1783,6 +1784,28 @@ echo $! > /tmp/clay-bridge.pid
     });
 
     commandPalette.register({
+      id: 'browser-automation',
+      label: 'Toggle Browser Automation',
+      description: 'Open/close the browser automation panel',
+      shortcut: 'Ctrl+B',
+      category: 'View',
+      callback: () => {
+        browserAutomation.toggle();
+        const browserAutomationBtn = document.getElementById('browser-automation-btn');
+        if (browserAutomationBtn) {
+          const icon = browserAutomation.isVisible ? 'x' : 'globe';
+          const iconEl = browserAutomationBtn.querySelector('i');
+          if (iconEl) {
+            iconEl.setAttribute('data-lucide', icon);
+            if ((window as any).lucide) {
+              (window as any).lucide.createIcons();
+            }
+          }
+        }
+      }
+    });
+
+    commandPalette.register({
       id: 'search',
       label: 'Search in Terminal',
       description: 'Search for text in terminal output',
@@ -2439,22 +2462,167 @@ echo $! > /tmp/clay-bridge.pid
   }
 
   private async handleBrowserPodCommand(command: string): Promise<void> {
+    if (!this.backend) {
+      this.terminal.write('\r\n\x1b[33m[INFO]\x1b[0m Bridge backend required for BrowserPod/Puppeteer commands.\r\n');
+      this.writePrompt();
+      return;
+    }
+
+    // Ensure integration has backend
+    browserPodIntegration.setBackend(this.backend as BackendInterface);
+
     const args = command.substring(11).trim().split(' ');
     const subcommand = args[0] || 'help';
 
     try {
       switch (subcommand) {
+        case 'launch':
+          const headless = args[1] !== 'gui';
+          this.terminal.write(`\r\n\x1b[36m[Puppeteer]\x1b[0m Launching browser (${headless ? 'headless' : 'GUI'})...\r\n`);
+          const launchResult = await browserPodIntegration.launchBrowser(headless);
+          this.terminal.write(launchResult.output + '\r\n');
+          if (launchResult.success && launchResult.browserId) {
+            this.terminal.write(`\x1b[32m[✓]\x1b[0m Browser ID: ${launchResult.browserId}\r\n`);
+          }
+          break;
+
+        case 'close':
+          if (args.length < 2) {
+            this.terminal.write('\r\n\x1b[33m[Usage]\x1b[0m browserpod close <browserId>\r\n');
+            break;
+          }
+          this.terminal.write(`\r\n\x1b[36m[Puppeteer]\x1b[0m Closing browser: ${args[1]}...\r\n`);
+          const closeResult = await browserPodIntegration.closeBrowser(args[1]);
+          this.terminal.write(closeResult.output + '\r\n');
+          break;
+
+        case 'list':
+        case 'browsers':
+          this.terminal.write('\r\n\x1b[36m[Puppeteer]\x1b[0m Listing browsers...\r\n');
+          const browsersResult = await browserPodIntegration.listBrowsers();
+          if (browsersResult.success && browsersResult.browsers.length > 0) {
+            browsersResult.browsers.forEach(browser => {
+              this.terminal.write(`  ${browser.browserId} - ${browser.connected ? 'Connected' : 'Disconnected'} (${browser.pages.length} pages)\r\n`);
+            });
+          } else {
+            this.terminal.write('  No browsers running\r\n');
+          }
+          break;
+
+        case 'page':
+          if (args.length < 3) {
+            this.terminal.write('\r\n\x1b[33m[Usage]\x1b[0m browserpod page <create|navigate|screenshot|close> [args...]\r\n');
+            break;
+          }
+          const pageAction = args[1];
+          if (pageAction === 'create') {
+            if (args.length < 3) {
+              this.terminal.write('\r\n\x1b[33m[Usage]\x1b[0m browserpod page create <browserId>\r\n');
+              break;
+            }
+            this.terminal.write(`\r\n\x1b[36m[Puppeteer]\x1b[0m Creating page in browser: ${args[2]}...\r\n`);
+            const pageResult = await browserPodIntegration.createPage(args[2]);
+            this.terminal.write(pageResult.output + '\r\n');
+            if (pageResult.success && pageResult.pageId) {
+              this.terminal.write(`\x1b[32m[✓]\x1b[0m Page ID: ${pageResult.pageId}\r\n`);
+            }
+          } else if (pageAction === 'navigate') {
+            if (args.length < 4) {
+              this.terminal.write('\r\n\x1b[33m[Usage]\x1b[0m browserpod page navigate <pageId> <url>\r\n');
+              break;
+            }
+            this.terminal.write(`\r\n\x1b[36m[Puppeteer]\x1b[0m Navigating to: ${args[3]}...\r\n`);
+            const navResult = await browserPodIntegration.navigate(args[2], args[3]);
+            this.terminal.write(navResult.output + '\r\n');
+          } else if (pageAction === 'screenshot') {
+            if (args.length < 3) {
+              this.terminal.write('\r\n\x1b[33m[Usage]\x1b[0m browserpod page screenshot <pageId>\r\n');
+              break;
+            }
+            this.terminal.write(`\r\n\x1b[36m[Puppeteer]\x1b[0m Taking screenshot...\r\n`);
+            const screenshotResult = await browserPodIntegration.screenshot(args[2]);
+            this.terminal.write(screenshotResult.output + '\r\n');
+            if (screenshotResult.success && screenshotResult.screenshot) {
+              this.terminal.write(`\x1b[32m[✓]\x1b[0m Screenshot taken (base64 encoded)\r\n`);
+            }
+          } else if (pageAction === 'close') {
+            if (args.length < 3) {
+              this.terminal.write('\r\n\x1b[33m[Usage]\x1b[0m browserpod page close <pageId>\r\n');
+              break;
+            }
+            this.terminal.write(`\r\n\x1b[36m[Puppeteer]\x1b[0m Closing page: ${args[2]}...\r\n`);
+            const closePageResult = await browserPodIntegration.closePage(args[2]);
+            this.terminal.write(closePageResult.output + '\r\n');
+          }
+          break;
+
+        case 'pages':
+          this.terminal.write('\r\n\x1b[36m[Puppeteer]\x1b[0m Listing pages...\r\n');
+          const pagesResult = await browserPodIntegration.listPages();
+          if (pagesResult.success && pagesResult.pages.length > 0) {
+            pagesResult.pages.forEach(page => {
+              this.terminal.write(`  ${page.pageId} - ${page.url} (${page.title})\r\n`);
+            });
+          } else {
+            this.terminal.write('  No pages open\r\n');
+          }
+          break;
+
+        case 'click':
+          if (args.length < 4) {
+            this.terminal.write('\r\n\x1b[33m[Usage]\x1b[0m browserpod click <pageId> <selector>\r\n');
+            break;
+          }
+          this.terminal.write(`\r\n\x1b[36m[Puppeteer]\x1b[0m Clicking: ${args[2]}...\r\n`);
+          const clickResult = await browserPodIntegration.click(args[1], args[2]);
+          this.terminal.write(clickResult.output + '\r\n');
+          break;
+
+        case 'type':
+          if (args.length < 4) {
+            this.terminal.write('\r\n\x1b[33m[Usage]\x1b[0m browserpod type <pageId> <selector> <text>\r\n');
+            break;
+          }
+          this.terminal.write(`\r\n\x1b[36m[Puppeteer]\x1b[0m Typing into: ${args[2]}...\r\n`);
+          const typeResult = await browserPodIntegration.type(args[1], args[2], args.slice(3).join(' '));
+          this.terminal.write(typeResult.output + '\r\n');
+          break;
+
+        case 'eval':
+        case 'evaluate':
+          if (args.length < 3) {
+            this.terminal.write('\r\n\x1b[33m[Usage]\x1b[0m browserpod eval <pageId> <script>\r\n');
+            break;
+          }
+          this.terminal.write(`\r\n\x1b[36m[Puppeteer]\x1b[0m Evaluating script...\r\n`);
+          const evalResult = await browserPodIntegration.evaluate(args[1], args.slice(2).join(' '));
+          this.terminal.write(evalResult.output + '\r\n');
+          if (evalResult.success && evalResult.result !== undefined) {
+            this.terminal.write(`\x1b[32m[Result]\x1b[0m ${JSON.stringify(evalResult.result)}\r\n`);
+          }
+          break;
+
         case 'status':
           const status = browserPodIntegration.getStatus();
-          this.terminal.write(`\r\n\x1b[36m[BrowserPod Status]\x1b[0m\r\n`);
+          this.terminal.write(`\r\n\x1b[36m[BrowserPod/Puppeteer Status]\x1b[0m\r\n`);
           this.terminal.write(`  Available: ${status.available ? 'Yes' : 'No'}\r\n`);
+          this.terminal.write(`  Browsers: ${status.browsers}\r\n`);
+          this.terminal.write(`  Pages: ${status.pages}\r\n`);
           break;
 
         default:
-          this.terminal.write('\r\n\x1b[33m[BrowserPod Commands]\x1b[0m\r\n');
-          this.terminal.write('  browserpod status        - Check BrowserPod status\r\n');
-          this.terminal.write('\r\n\x1b[36m[Note]\x1b[0m BrowserPod integration is available.\r\n');
-          this.terminal.write('  Full container management coming soon.\r\n');
+          this.terminal.write('\r\n\x1b[33m[BrowserPod/Puppeteer Commands]\x1b[0m\r\n');
+          this.terminal.write('  browserpod launch [gui]   - Launch browser (headless or GUI)\r\n');
+          this.terminal.write('  browserpod close <id>     - Close browser\r\n');
+          this.terminal.write('  browserpod list           - List all browsers\r\n');
+          this.terminal.write('  browserpod pages          - List all pages\r\n');
+          this.terminal.write('  browserpod page create <browserId> - Create new page\r\n');
+          this.terminal.write('  browserpod page navigate <pageId> <url> - Navigate to URL\r\n');
+          this.terminal.write('  browserpod page screenshot <pageId> - Take screenshot\r\n');
+          this.terminal.write('  browserpod click <pageId> <selector> - Click element\r\n');
+          this.terminal.write('  browserpod type <pageId> <selector> <text> - Type text\r\n');
+          this.terminal.write('  browserpod eval <pageId> <script> - Evaluate JavaScript\r\n');
+          this.terminal.write('  browserpod status         - Show status\r\n');
       }
     } catch (error: any) {
       this.terminal.write(`\r\n\x1b[31m[ERROR]\x1b[0m ${error.message}\r\n`);
@@ -2549,6 +2717,7 @@ echo $! > /tmp/clay-bridge.pid
       chrostiniIntegration.setBackend(this.backend as BackendInterface);
       virtualBoxIntegration.setBackend(this.backend as BackendInterface);
       recomodIntegration.setBackend(this.backend as BackendInterface);
+      browserPodIntegration.setBackend(this.backend as BackendInterface);
 
       // Determine bridge type
       const bridgeType = enhancedBridge.getBridgeType();
@@ -3176,6 +3345,7 @@ echo $! > /tmp/clay-bridge.pid
       this.terminal.write(`  \x1b[32mCtrl+Shift+T\x1b[0m - New terminal tab\r\n`);
       this.terminal.write(`  \x1b[32mCtrl+P\x1b[0m       - Open command palette\r\n`);
       this.terminal.write(`  \x1b[32mCtrl+E\x1b[0m       - Toggle file manager\r\n`);
+      this.terminal.write(`  \x1b[32mCtrl+B\x1b[0m       - Toggle browser automation\r\n`);
       this.terminal.write(`  \x1b[32m↑/↓\x1b[0m          - Command history navigation\r\n\r\n`);
       
       this.terminal.write(`\x1b[33m═══════════════════════════════════════════════════════════════\x1b[0m\r\n`);
@@ -3223,8 +3393,13 @@ echo $! > /tmp/clay-bridge.pid
       this.terminal.write(`    vbox stop <vm>          - Stop VM\r\n`);
       this.terminal.write(`  \x1b[32mv86\x1b[0m            - x86 emulator (browser-based)\r\n`);
       this.terminal.write(`    v86 status             - Check availability\r\n`);
-      this.terminal.write(`  \x1b[32mbrowserpod\x1b[0m      - Browser-based container runtime\r\n`);
-      this.terminal.write(`    browserpod status      - Check status\r\n`);
+      this.terminal.write(`  \x1b[32mbrowserpod\x1b[0m      - Browser automation (Puppeteer)\r\n`);
+      this.terminal.write(`    browserpod launch      - Launch browser\r\n`);
+      this.terminal.write(`    browserpod list        - List browsers\r\n`);
+      this.terminal.write(`    browserpod page create - Create page\r\n`);
+      this.terminal.write(`    browserpod page navigate - Navigate to URL\r\n`);
+      this.terminal.write(`    browserpod click       - Click element\r\n`);
+      this.terminal.write(`    browserpod eval        - Evaluate JavaScript\r\n`);
       this.terminal.write(`\r\n`);
       
       this.terminal.write(`\x1b[36mFor more information, visit: https://github.com/your-repo/clay\x1b[0m\r\n\r\n`);
@@ -4271,6 +4446,9 @@ class UIBuilder {
     // File Manager button
     const fileManagerBtn = this.createIconButton('file-manager-btn', 'folder', 'Files', 'Toggle File Manager');
     
+    // Browser Automation button
+    const browserAutomationBtn = this.createIconButton('browser-automation-btn', 'globe', 'Browser', 'Toggle Browser Automation');
+    
     // Share button
     const shareBtn = this.createIconButton('share-btn', 'link', 'Share', 'Share Session');
     
@@ -4283,7 +4461,39 @@ class UIBuilder {
     
     actions.appendChild(statusIndicators);
     actions.appendChild(fileManagerBtn);
+    actions.appendChild(browserAutomationBtn);
     actions.appendChild(shareBtn);
+    
+    // Attach browser automation button handler
+    browserAutomationBtn.addEventListener('click', () => {
+      browserAutomation.toggle();
+      const icon = browserAutomation.isVisible ? 'x' : 'globe';
+      const iconEl = browserAutomationBtn.querySelector('i');
+      if (iconEl) {
+        iconEl.setAttribute('data-lucide', icon);
+        if ((window as any).lucide) {
+          (window as any).lucide.createIcons();
+        }
+      }
+    });
+    
+    // Register keyboard shortcut for browser automation (Ctrl+B)
+    shortcutManager.register({
+      key: 'b',
+      ctrl: true,
+      description: 'Toggle Browser Automation',
+      callback: () => {
+        browserAutomation.toggle();
+        const icon = browserAutomation.isVisible ? 'x' : 'globe';
+        const iconEl = browserAutomationBtn.querySelector('i');
+        if (iconEl) {
+          iconEl.setAttribute('data-lucide', icon);
+          if ((window as any).lucide) {
+            (window as any).lucide.createIcons();
+          }
+        }
+      }
+    });
     actions.appendChild(modelBtn);
     actions.appendChild(installBtn);
     

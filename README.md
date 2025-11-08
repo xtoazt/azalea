@@ -41,6 +41,8 @@ A powerful, feature-rich terminal that runs in your browser with real system acc
 - **Responsive Layout** - Works on all screen sizes
 - **Status Indicators** - Real-time connection status
 - **Notifications** - Toast notification system
+- **File Manager** - Visual file browser (Ctrl+E)
+- **Browser Automation Panel** - Visual Puppeteer browser management (Ctrl+B)
 
 ## 🚀 Quick Start
 
@@ -199,8 +201,17 @@ const ai = getWebLLMService({
   - `vbox stop <vm>` - Stop a VM
 - `v86` - x86 emulator (browser-based)
   - `v86 status` - Check v86 availability
-- `browserpod` - Browser-based container runtime
-  - `browserpod status` - Check BrowserPod status
+- `browserpod` - Browser automation with Puppeteer
+  - `browserpod launch [gui]` - Launch browser (headless or GUI)
+  - `browserpod list` - List all browsers
+  - `browserpod pages` - List all pages
+  - `browserpod page create <browserId>` - Create new page
+  - `browserpod page navigate <pageId> <url>` - Navigate to URL
+  - `browserpod page screenshot <pageId>` - Take screenshot
+  - `browserpod click <pageId> <selector>` - Click element
+  - `browserpod type <pageId> <selector> <text>` - Type text
+  - `browserpod eval <pageId> <script>` - Evaluate JavaScript
+  - `browserpod status` - Show status
 
 ## 🔒 Security
 
@@ -225,6 +236,7 @@ Clay Terminal integrates with several powerful tools and services:
 - **[VirtualBox](https://github.com/VirtualBox/virtualbox)** - Virtual machine management
 - **[v86](https://github.com/copy/v86)** - x86 PC emulator running in the browser
 - **[BrowserPod](https://github.com/leaningtech/browserpod-meta)** - Browser-based container runtime
+- **[Puppeteer](https://github.com/puppeteer/puppeteer)** - Browser automation (integrated with BrowserPod)
 
 ### ChromeOS Tools
 - **[RecoMod](https://github.com/MercuryWorkshop/RecoMod)** - ChromeOS recovery and modding tools
@@ -236,6 +248,7 @@ All integrations are accessible via terminal commands and work seamlessly with t
 - [xterm.js](https://xtermjs.org/) - Terminal emulator
 - [WebLLM](https://webllm.mlc.ai/) - Browser-based AI inference
 - [BrowserPod](https://github.com/leaningtech/browserpod-meta) - Inspiration for in-browser runtime
+- [Puppeteer](https://github.com/puppeteer/puppeteer) - Browser automation library
 - [crosup](https://github.com/tsirysndr/crosup) - Development environment setup
 - [v86](https://github.com/copy/v86) - x86 emulation in browser
 

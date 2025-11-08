@@ -121,23 +121,36 @@ export class EnhancedBridge {
   private async connectExternalBridge(): Promise<BridgeBackend | null> {
     try {
       const bridge = new BridgeBackend();
-      // Quick health check with shorter timeout for non-ChromeOS
-      const isHealthy = await retryWithBackoff(
-        () => bridge.healthCheck(),
-        this.config.retryAttempts,
-        500, // Faster retry delay
-        { component: 'EnhancedBridge', operation: 'connectExternalBridge' }
-      );
+      // Try health check first, but don't fail if it times out
+      // On ChromeOS, the bridge might be starting up
+      let isHealthy = false;
+      try {
+        isHealthy = await retryWithBackoff(
+          () => bridge.healthCheck(),
+          this.config.retryAttempts,
+          1000, // Longer retry delay for ChromeOS
+          { component: 'EnhancedBridge', operation: 'connectExternalBridge' }
+        );
+      } catch (healthError) {
+        // Health check failed, but try connecting anyway
+        // Sometimes the bridge is up but health endpoint isn't ready
+        console.log('[EnhancedBridge] Health check failed, attempting connection anyway:', healthError instanceof Error ? healthError.message : String(healthError));
+      }
       
-      if (isHealthy) {
-        // Bridge is healthy, now actually connect the WebSocket
-        try {
-          await bridge.connect();
-          return bridge;
-        } catch (connectError) {
-          console.log('[EnhancedBridge] Bridge health check passed but connection failed:', connectError instanceof Error ? connectError.message : String(connectError));
-          return null;
-        }
+      // Try to connect even if health check failed
+      // On ChromeOS, the bridge might be ready but health endpoint slow
+      try {
+        // Use a longer timeout for ChromeOS
+        const connectPromise = bridge.connect();
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          setTimeout(() => reject(new Error('Connection timeout')), 10000);
+        });
+        
+        await Promise.race([connectPromise, timeoutPromise]);
+        return bridge;
+      } catch (connectError) {
+        console.log('[EnhancedBridge] Bridge connection failed:', connectError instanceof Error ? connectError.message : String(connectError));
+        return null;
       }
     } catch (error) {
       // External bridge not available - this is expected on most devices

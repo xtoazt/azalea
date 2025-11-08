@@ -30,15 +30,17 @@ export class BridgeBackend {
   async connect(): Promise<void> {
     return new Promise((resolve, reject) => {
       let timeout: ReturnType<typeof setTimeout> | null = null;
+      let resolved = false;
       
       try {
-        // Try connecting with timeout
+        // Try connecting with longer timeout for ChromeOS
         timeout = setTimeout(() => {
-          if (!this.sessionId) {
+          if (!this.sessionId && !resolved) {
+            resolved = true;
             this.ws?.close();
             reject(new Error('Connection timeout'));
           }
-        }, 5000);
+        }, 10000); // Increased from 5000 to 10000 for ChromeOS
 
         this.ws = new WebSocket(this.bridgeUrl);
 
@@ -56,13 +58,16 @@ export class BridgeBackend {
             switch (data.type) {
               case 'connected':
                 if (timeout) clearTimeout(timeout);
-                this.sessionId = data.sessionId;
-                if (this.onOutputCallback) {
-                  this.onOutputCallback(`\x1b[32m[Connected]\x1b[0m Bridge: ${data.shell}\r\n`);
-                  this.onOutputCallback(`\x1b[32m[Connected]\x1b[0m Platform: ${data.platform}\r\n`);
-                  this.onOutputCallback(`\x1b[32m[Connected]\x1b[0m CWD: ${data.cwd}\r\n`);
+                if (!resolved) {
+                  resolved = true;
+                  this.sessionId = data.sessionId;
+                  if (this.onOutputCallback) {
+                    this.onOutputCallback(`\x1b[32m[Connected]\x1b[0m Bridge: ${data.shell}\r\n`);
+                    this.onOutputCallback(`\x1b[32m[Connected]\x1b[0m Platform: ${data.platform}\r\n`);
+                    this.onOutputCallback(`\x1b[32m[Connected]\x1b[0m CWD: ${data.cwd}\r\n`);
+                  }
+                  resolve();
                 }
-                resolve();
                 break;
                 
               case 'output':
@@ -81,7 +86,11 @@ export class BridgeBackend {
                 if (this.onErrorCallback) {
                   this.onErrorCallback(data.message);
                 }
-                reject(new Error(data.message));
+                if (!resolved) {
+                  resolved = true;
+                  if (timeout) clearTimeout(timeout);
+                  reject(new Error(data.message));
+                }
                 break;
                 
               default:
@@ -94,9 +103,14 @@ export class BridgeBackend {
 
         this.ws.onerror = (error) => {
           console.error('WebSocket error:', error);
-          this.isConnected = false;
-          if (this.onErrorCallback) {
-            this.onErrorCallback('Connection error');
+          if (!resolved) {
+            resolved = true;
+            if (timeout) clearTimeout(timeout);
+            this.isConnected = false;
+            if (this.onErrorCallback) {
+              this.onErrorCallback('Connection error');
+            }
+            reject(new Error('WebSocket error'));
           }
           
           // Try to reconnect
@@ -116,6 +130,12 @@ export class BridgeBackend {
         this.ws.onclose = () => {
           console.log('WebSocket closed');
           this.isConnected = false;
+          
+          if (!this.sessionId && !resolved) {
+            resolved = true;
+            if (timeout) clearTimeout(timeout);
+            reject(new Error('Connection closed'));
+          }
           
           // Attempt to reconnect
           if (this.reconnectAttempts < this.maxReconnectAttempts) {

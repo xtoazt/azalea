@@ -80,20 +80,25 @@ class MultiWindowSync {
       sessionStorage.removeItem('azalea-window-role');
       localStorage.setItem(`azalea-window-role-${this.windowId}`, 'tools');
       
-      // Wait a bit for DOM to be ready, then assign components
+      // Wait longer for DOM and terminal to be ready, then assign components
       setTimeout(() => {
         this.assignComponentsForToolsWindow();
-      }, 500);
+      }, 2000); // Increased delay to ensure terminal initializes first
     } else if (savedRole && ['terminal', 'tools', 'mixed'].includes(savedRole)) {
       // Use saved role preference
       this.windowRole = savedRole;
+      // Wait for terminal to initialize first
       setTimeout(() => {
         this.applyWindowRole(this.windowRole);
-      }, 500);
+      }, 2000);
     } else {
       // This is the original/terminal window
       this.windowRole = 'mixed'; // Start as mixed so everything is visible
       localStorage.setItem(`azalea-window-role-${this.windowId}`, 'mixed');
+      // Don't apply role immediately - let terminal initialize first
+      setTimeout(() => {
+        this.applyWindowRole(this.windowRole);
+      }, 2000);
     }
     
     // Announce this window's presence
@@ -449,16 +454,25 @@ class MultiWindowSync {
 
   private assignComponentsForTerminalWindow(): void {
     // Terminal window: Show terminal, status bar, hide tools
-    // Show terminal
-    const terminal = document.getElementById('terminal') || document.querySelector('.terminal-container');
+    // Show terminal - ensure it's visible and not hidden
+    const terminal = document.getElementById('terminal');
     if (terminal) {
       (terminal as HTMLElement).style.display = '';
+      (terminal as HTMLElement).style.visibility = 'visible';
       (terminal as HTMLElement).classList.remove('multi-window-hidden');
+    }
+    
+    const terminalContainer = document.querySelector('.terminal-container');
+    if (terminalContainer) {
+      (terminalContainer as HTMLElement).style.display = '';
+      (terminalContainer as HTMLElement).style.visibility = 'visible';
+      (terminalContainer as HTMLElement).classList.remove('multi-window-hidden');
     }
     
     const terminalBody = document.querySelector('.terminal-body');
     if (terminalBody) {
       (terminalBody as HTMLElement).style.display = '';
+      (terminalBody as HTMLElement).style.visibility = 'visible';
     }
     
     // Show status bar

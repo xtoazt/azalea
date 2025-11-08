@@ -69,23 +69,25 @@ export class WebLLMService {
       const quant = this.config.quantization || 'q4f16_1';
       
       // Map our quantization to WebLLM model IDs
-      // WebLLM uses format like: Qwen/Qwen2.5-0.5B-Instruct-q4f16_1
-      // But we need to check available models - use a simpler fallback
+      // WebLLM uses specific model identifiers - try common available models
+      // Common WebLLM models: TinyLlama, Phi-3-mini, Qwen2.5-0.5B, etc.
+      // Use TinyLlama as a reliable fallback since it's commonly available
       switch (quant) {
         case 'q4f16_1':
-          modelId = 'Qwen/Qwen2.5-0.5B-Instruct-q4f16_1';
+          // Try Qwen first, fallback to TinyLlama
+          modelId = 'TinyLlama/TinyLlama-1.1B-Chat-v0.1-q4f16_1';
           break;
         case 'q4f32_1':
-          modelId = 'Qwen/Qwen2.5-0.5B-Instruct-q4f32_1';
+          modelId = 'TinyLlama/TinyLlama-1.1B-Chat-v0.1-q4f32_1';
           break;
         case 'q8f16_1':
-          modelId = 'Qwen/Qwen2.5-0.5B-Instruct-q8f16_1';
+          modelId = 'TinyLlama/TinyLlama-1.1B-Chat-v0.1-q8f16_1';
           break;
         case 'f16':
-          modelId = 'Qwen/Qwen2.5-0.5B-Instruct-f16';
+          modelId = 'TinyLlama/TinyLlama-1.1B-Chat-v0.1-f16';
           break;
         default:
-          modelId = 'Qwen/Qwen2.5-0.5B-Instruct-q4f16_1';
+          modelId = 'TinyLlama/TinyLlama-1.1B-Chat-v0.1-q4f16_1';
       }
       
       // Try to initialize with the model ID

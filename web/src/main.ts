@@ -142,19 +142,14 @@ class ClayWebTerminal {
       allowProposedApi: true // Required for some addons like ImageAddon
     });
 
+    // Create addons but don't load them yet - terminal must be opened first
     this.fitAddon = new FitAddon();
     this.searchAddon = new SearchAddon();
     this.imageAddon = new ImageAddon();
     this.ligaturesAddon = new LigaturesAddon();
     this.unicode11Addon = new Unicode11Addon();
     
-    this.terminal.loadAddon(this.fitAddon);
-    this.terminal.loadAddon(new WebLinksAddon());
-    this.terminal.loadAddon(new CanvasAddon());
-    this.terminal.loadAddon(this.unicode11Addon);
-    this.terminal.loadAddon(this.searchAddon);
-    this.terminal.loadAddon(this.imageAddon);
-    this.terminal.loadAddon(this.ligaturesAddon);
+    // Addons will be loaded in setupTerminalAfterOpen() after terminal.open()
 
     // AI Assistant - Use global standalone AI service (always available)
     // This ensures AI works even if terminal fails
@@ -1316,6 +1311,20 @@ echo $! > /tmp/clay-bridge.pid
   }
 
   private setupTerminalAfterOpen(): void {
+    // Load addons AFTER terminal is opened (required for LigaturesAddon and others)
+    try {
+      this.terminal.loadAddon(this.fitAddon);
+      this.terminal.loadAddon(new WebLinksAddon());
+      this.terminal.loadAddon(new CanvasAddon());
+      this.terminal.loadAddon(this.unicode11Addon);
+      this.terminal.loadAddon(this.searchAddon);
+      this.terminal.loadAddon(this.imageAddon);
+      this.terminal.loadAddon(this.ligaturesAddon);
+    } catch (error) {
+      console.error('Error loading terminal addons:', error);
+      // Continue without some addons if they fail
+    }
+    
     // Initial fit with a small delay to ensure proper rendering
     setTimeout(() => {
       this.fitAddon.fit();

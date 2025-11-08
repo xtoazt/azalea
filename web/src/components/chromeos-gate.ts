@@ -21,6 +21,18 @@ class ChromeOSGate {
   }
 
   private createContainer(): void {
+    // Ensure document.body exists before appending
+    if (!document.body) {
+      // Wait for body to be available
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => this.createContainer());
+        return;
+      }
+      // If still no body, retry after a short delay
+      setTimeout(() => this.createContainer(), 100);
+      return;
+    }
+    
     this.container = document.createElement('div');
     this.container.id = 'chromeos-gate';
     this.container.className = 'chromeos-gate-overlay hidden';

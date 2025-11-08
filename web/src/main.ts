@@ -23,6 +23,17 @@ import { getEnhancedBridge } from './enhanced-bridge';
 import { ErrorHandler } from './utils/error-handler';
 import { ensureAsyncValue, safeQuerySelector } from './utils/resilience';
 import './components/chromeos-gate'; // Import ChromeOS gate to initialize it
+import { 
+  crosupIntegration, 
+  chrostiniIntegration, 
+  virtualBoxIntegration, 
+  recomodIntegration,
+  browserPodIntegration,
+  v86Utils,
+  V86Emulator,
+  type BackendInterface
+} from './integrations';
+import { fileManager } from './components/file-manager';
 import './app.css';
 
 // Helper to get hostname (fallback for browser)
@@ -1750,6 +1761,28 @@ echo $! > /tmp/clay-bridge.pid
     });
 
     commandPalette.register({
+      id: 'file-manager',
+      label: 'Toggle File Manager',
+      description: 'Open/close the file manager sidebar',
+      shortcut: 'Ctrl+E',
+      category: 'View',
+      callback: () => {
+        fileManager.toggle();
+        const fileManagerBtn = document.getElementById('file-manager-btn');
+        if (fileManagerBtn) {
+          const icon = fileManager.isVisible ? 'x' : 'folder';
+          const iconEl = fileManagerBtn.querySelector('i');
+          if (iconEl) {
+            iconEl.setAttribute('data-lucide', icon);
+            if ((window as any).lucide) {
+              (window as any).lucide.createIcons();
+            }
+          }
+        }
+      }
+    });
+
+    commandPalette.register({
       id: 'search',
       label: 'Search in Terminal',
       description: 'Search for text in terminal output',
@@ -2086,6 +2119,348 @@ echo $! > /tmp/clay-bridge.pid
     }
   }
 
+  // Integration Command Handlers
+  private async handleCrosupCommand(command: string): Promise<void> {
+    if (!this.backend) {
+      this.terminal.write('\r\n\x1b[33m[INFO]\x1b[0m Bridge backend required for crosup commands.\r\n');
+      return;
+    }
+
+    // Ensure integration has backend (should already be set, but ensure it)
+    if (!crosupIntegration.getStatus().available) {
+      crosupIntegration.setBackend(this.backend as BackendInterface);
+    }
+    
+    const args = command.substring(7).trim().split(' ');
+    const subcommand = args[0];
+
+    try {
+      switch (subcommand) {
+        case 'init':
+          const format = args[1] === 'hcl' ? 'hcl' : 'toml';
+          this.terminal.write(`\r\n\x1b[36m[Crosup]\x1b[0m Initializing configuration (${format})...\r\n`);
+          const initResult = await crosupIntegration.initConfig(format);
+          this.terminal.write(initResult.output);
+          break;
+
+        case 'install':
+          const packages = args.slice(1).filter(p => p);
+          if (packages.length === 0) {
+            this.terminal.write('\r\n\x1b[33m[Usage]\x1b[0m crosup install <package1> [package2] ...\r\n');
+            this.terminal.write('\x1b[36m[Example]\x1b[0m crosup install vim git docker\r\n');
+            return;
+          }
+          this.terminal.write(`\r\n\x1b[36m[Crosup]\x1b[0m Installing packages: ${packages.join(', ')}...\r\n`);
+          const installResult = await crosupIntegration.installPackages(packages);
+          this.terminal.write(installResult.output);
+          break;
+
+        case 'add':
+          if (args.length < 2) {
+            this.terminal.write('\r\n\x1b[33m[Usage]\x1b[0m crosup add <package>\r\n');
+            return;
+          }
+          this.terminal.write(`\r\n\x1b[36m[Crosup]\x1b[0m Adding package: ${args[1]}...\r\n`);
+          const addResult = await crosupIntegration.addPackage(args[1]);
+          this.terminal.write(addResult.output);
+          break;
+
+        case 'search':
+          if (args.length < 2) {
+            this.terminal.write('\r\n\x1b[33m[Usage]\x1b[0m crosup search <query>\r\n');
+            return;
+          }
+          this.terminal.write(`\r\n\x1b[36m[Crosup]\x1b[0m Searching for: ${args.slice(1).join(' ')}...\r\n`);
+          const searchResult = await crosupIntegration.searchPackage(args.slice(1).join(' '));
+          this.terminal.write(searchResult.output);
+          break;
+
+        case 'diff':
+          this.terminal.write('\r\n\x1b[36m[Crosup]\x1b[0m Showing configuration diff...\r\n');
+          const diffResult = await crosupIntegration.showDiff();
+          this.terminal.write(diffResult.output);
+          break;
+
+        case 'history':
+          this.terminal.write('\r\n\x1b[36m[Crosup]\x1b[0m Showing configuration history...\r\n');
+          const historyResult = await crosupIntegration.showHistory();
+          this.terminal.write(historyResult.output);
+          break;
+
+        case 'status':
+          const status = crosupIntegration.getStatus();
+          this.terminal.write(`\r\n\x1b[36m[Crosup Status]\x1b[0m\r\n`);
+          this.terminal.write(`  Available: ${status.available ? 'Yes' : 'No'}\r\n`);
+          if (status.version) {
+            this.terminal.write(`  Version: ${status.version}\r\n`);
+          }
+          break;
+
+        default:
+          this.terminal.write('\r\n\x1b[33m[Crosup Commands]\x1b[0m\r\n');
+          this.terminal.write('  crosup init [toml|hcl]  - Initialize configuration\r\n');
+          this.terminal.write('  crosup install <pkgs>    - Install packages\r\n');
+          this.terminal.write('  crosup add <pkg>         - Add package to config\r\n');
+          this.terminal.write('  crosup search <query>    - Search nixpkgs\r\n');
+          this.terminal.write('  crosup diff              - Show config diff\r\n');
+          this.terminal.write('  crosup history           - Show config history\r\n');
+          this.terminal.write('  crosup status            - Show status\r\n');
+      }
+    } catch (error: any) {
+      this.terminal.write(`\r\n\x1b[31m[ERROR]\x1b[0m ${error.message}\r\n`);
+    }
+  }
+
+  private async handleChrostiniCommand(command: string): Promise<void> {
+    if (!this.isChromeOS) {
+      this.terminal.write('\r\n\x1b[33m[INFO]\x1b[0m Chrostini commands are only available on ChromeOS.\r\n');
+      return;
+    }
+
+    if (!this.backend) {
+      this.terminal.write('\r\n\x1b[33m[INFO]\x1b[0m Bridge backend required for Chrostini commands.\r\n');
+      return;
+    }
+
+    // Ensure integration has backend
+    chrostiniIntegration.setBackend(this.backend as BackendInterface);
+    
+    const args = command.substring(10).trim().split(' ');
+    const subcommand = args[0] || 'help';
+
+    try {
+      switch (subcommand) {
+        case 'init':
+        case 'setup':
+          this.terminal.write('\r\n\x1b[36m[Chrostini]\x1b[0m Initializing Linux container...\r\n');
+          const initResult = await chrostiniIntegration.quickSetup();
+          this.terminal.write(initResult.output);
+          break;
+
+        case 'desktop':
+          this.terminal.write('\r\n\x1b[36m[Chrostini]\x1b[0m Installing desktop environment...\r\n');
+          const desktopResult = await chrostiniIntegration.installDesktop();
+          this.terminal.write(desktopResult.output);
+          break;
+
+        case 'update':
+          this.terminal.write('\r\n\x1b[36m[Chrostini]\x1b[0m Updating Linux container...\r\n');
+          const updateResult = await chrostiniIntegration.update();
+          this.terminal.write(updateResult.output);
+          break;
+
+        case 'install':
+          if (args.length < 2) {
+            this.terminal.write('\r\n\x1b[33m[Usage]\x1b[0m chrostini install <package>\r\n');
+            return;
+          }
+          this.terminal.write(`\r\n\x1b[36m[Chrostini]\x1b[0m Installing: ${args[1]}...\r\n`);
+          const installResult = await chrostiniIntegration.installPackage(args[1]);
+          this.terminal.write(installResult.output);
+          break;
+
+        case 'status':
+          this.terminal.write('\r\n\x1b[36m[Chrostini]\x1b[0m Checking container status...\r\n');
+          const statusResult = await chrostiniIntegration.checkStatus();
+          this.terminal.write(statusResult.output);
+          break;
+
+        default:
+          this.terminal.write('\r\n\x1b[33m[Chrostini Commands]\x1b[0m\r\n');
+          this.terminal.write('  chrostini init/setup     - Quick setup\r\n');
+          this.terminal.write('  chrostini desktop        - Install desktop\r\n');
+          this.terminal.write('  chrostini update         - Update container\r\n');
+          this.terminal.write('  chrostini install <pkg>  - Install package\r\n');
+          this.terminal.write('  chrostini status        - Check status\r\n');
+      }
+    } catch (error: any) {
+      this.terminal.write(`\r\n\x1b[31m[ERROR]\x1b[0m ${error.message}\r\n`);
+    }
+  }
+
+  private async handleVirtualBoxCommand(command: string): Promise<void> {
+    if (!this.backend) {
+      this.terminal.write('\r\n\x1b[33m[INFO]\x1b[0m Bridge backend required for VirtualBox commands.\r\n');
+      return;
+    }
+
+    // Ensure integration has backend
+    virtualBoxIntegration.setBackend(this.backend as BackendInterface);
+    
+    const cmd = command.startsWith('vbox ') ? command.substring(5) : command.substring(11);
+    const args = cmd.trim().split(' ');
+    const subcommand = args[0];
+
+    try {
+      switch (subcommand) {
+        case 'list':
+          this.terminal.write('\r\n\x1b[36m[VirtualBox]\x1b[0m Listing VMs...\r\n');
+          const vms = await virtualBoxIntegration.listVMs();
+          if (vms.length === 0) {
+            this.terminal.write('  No VMs found\r\n');
+          } else {
+            vms.forEach(vm => {
+              this.terminal.write(`  ${vm.name} (${vm.uuid.substring(0, 8)}...) - ${vm.state}\r\n`);
+            });
+          }
+          break;
+
+        case 'start':
+          if (args.length < 2) {
+            this.terminal.write('\r\n\x1b[33m[Usage]\x1b[0m vbox start <vm-name-or-uuid>\r\n');
+            return;
+          }
+          this.terminal.write(`\r\n\x1b[36m[VirtualBox]\x1b[0m Starting VM: ${args[1]}...\r\n`);
+          const startResult = await virtualBoxIntegration.startVM(args[1], args[2] === 'headless');
+          this.terminal.write(startResult.output);
+          break;
+
+        case 'stop':
+          if (args.length < 2) {
+            this.terminal.write('\r\n\x1b[33m[Usage]\x1b[0m vbox stop <vm-name-or-uuid> [force]\r\n');
+            return;
+          }
+          this.terminal.write(`\r\n\x1b[36m[VirtualBox]\x1b[0m Stopping VM: ${args[1]}...\r\n`);
+          const stopResult = await virtualBoxIntegration.stopVM(args[1], args[2] === 'force');
+          this.terminal.write(stopResult.output);
+          break;
+
+        case 'status':
+          const status = virtualBoxIntegration.getStatus();
+          this.terminal.write(`\r\n\x1b[36m[VirtualBox Status]\x1b[0m\r\n`);
+          this.terminal.write(`  Available: ${status.available ? 'Yes' : 'No'}\r\n`);
+          if (status.version) {
+            this.terminal.write(`  Version: ${status.version}\r\n`);
+          }
+          break;
+
+        default:
+          this.terminal.write('\r\n\x1b[33m[VirtualBox Commands]\x1b[0m\r\n');
+          this.terminal.write('  vbox list                - List all VMs\r\n');
+          this.terminal.write('  vbox start <vm>          - Start VM\r\n');
+          this.terminal.write('  vbox stop <vm> [force]   - Stop VM\r\n');
+          this.terminal.write('  vbox status             - Show status\r\n');
+      }
+    } catch (error: any) {
+      this.terminal.write(`\r\n\x1b[31m[ERROR]\x1b[0m ${error.message}\r\n`);
+    }
+  }
+
+  private async handleRecoModCommand(command: string): Promise<void> {
+    if (!this.isChromeOS) {
+      this.terminal.write('\r\n\x1b[33m[INFO]\x1b[0m RecoMod commands are only available on ChromeOS.\r\n');
+      return;
+    }
+
+    if (!this.backend) {
+      this.terminal.write('\r\n\x1b[33m[INFO]\x1b[0m Bridge backend required for RecoMod commands.\r\n');
+      return;
+    }
+
+    // Ensure integration has backend
+    recomodIntegration.setBackend(this.backend as BackendInterface);
+    
+    const args = command.substring(8).trim().split(' ');
+    const subcommand = args[0] || 'info';
+
+    try {
+      switch (subcommand) {
+        case 'info':
+        case 'device':
+          this.terminal.write('\r\n\x1b[36m[RecoMod]\x1b[0m Getting device information...\r\n');
+          const infoResult = await recomodIntegration.getDeviceInfo();
+          this.terminal.write(infoResult.output);
+          break;
+
+        case 'recovery':
+          this.terminal.write('\r\n\x1b[36m[RecoMod]\x1b[0m Checking recovery mode...\r\n');
+          const recoveryResult = await recomodIntegration.checkRecoveryMode();
+          this.terminal.write(recoveryResult.output);
+          break;
+
+        case 'firmware':
+        case 'fw':
+          this.terminal.write('\r\n\x1b[36m[RecoMod]\x1b[0m Getting firmware information...\r\n');
+          const fwResult = await recomodIntegration.getFirmwareInfo();
+          this.terminal.write(fwResult.output);
+          break;
+
+        case 'dev':
+        case 'developer':
+          this.terminal.write('\r\n\x1b[36m[RecoMod]\x1b[0m Checking developer mode...\r\n');
+          const devResult = await recomodIntegration.checkDeveloperMode();
+          this.terminal.write(devResult.output);
+          break;
+
+        case 'partitions':
+        case 'parts':
+          this.terminal.write('\r\n\x1b[36m[RecoMod]\x1b[0m Getting partition information...\r\n');
+          const partResult = await recomodIntegration.getPartitionInfo();
+          this.terminal.write(partResult.output);
+          break;
+
+        default:
+          this.terminal.write('\r\n\x1b[33m[RecoMod Commands]\x1b[0m\r\n');
+          this.terminal.write('  recomod info/device      - Device information\r\n');
+          this.terminal.write('  recomod recovery        - Recovery mode status\r\n');
+          this.terminal.write('  recomod firmware/fw     - Firmware info\r\n');
+          this.terminal.write('  recomod dev/developer   - Developer mode\r\n');
+          this.terminal.write('  recomod partitions/parts - Partition info\r\n');
+      }
+    } catch (error: any) {
+      this.terminal.write(`\r\n\x1b[31m[ERROR]\x1b[0m ${error.message}\r\n`);
+    }
+  }
+
+  private async handleV86Command(command: string): Promise<void> {
+    const args = command.substring(4).trim().split(' ');
+    const subcommand = args[0] || 'help';
+
+    try {
+      switch (subcommand) {
+        case 'status':
+          const available = v86Utils.isAvailable();
+          this.terminal.write(`\r\n\x1b[36m[v86 Status]\x1b[0m\r\n`);
+          this.terminal.write(`  Available: ${available ? 'Yes' : 'No'}\r\n`);
+          if (!available) {
+            this.terminal.write('  Note: v86 library will be loaded when needed\r\n');
+          }
+          break;
+
+        default:
+          this.terminal.write('\r\n\x1b[33m[v86 Commands]\x1b[0m\r\n');
+          this.terminal.write('  v86 status              - Check v86 availability\r\n');
+          this.terminal.write('\r\n\x1b[36m[Note]\x1b[0m v86 emulator integration is available.\r\n');
+          this.terminal.write('  Use v86.createEmulator() in code to create instances.\r\n');
+      }
+    } catch (error: any) {
+      this.terminal.write(`\r\n\x1b[31m[ERROR]\x1b[0m ${error.message}\r\n`);
+    }
+  }
+
+  private async handleBrowserPodCommand(command: string): Promise<void> {
+    const args = command.substring(11).trim().split(' ');
+    const subcommand = args[0] || 'help';
+
+    try {
+      switch (subcommand) {
+        case 'status':
+          const status = browserPodIntegration.getStatus();
+          this.terminal.write(`\r\n\x1b[36m[BrowserPod Status]\x1b[0m\r\n`);
+          this.terminal.write(`  Available: ${status.available ? 'Yes' : 'No'}\r\n`);
+          break;
+
+        default:
+          this.terminal.write('\r\n\x1b[33m[BrowserPod Commands]\x1b[0m\r\n');
+          this.terminal.write('  browserpod status        - Check BrowserPod status\r\n');
+          this.terminal.write('\r\n\x1b[36m[Note]\x1b[0m BrowserPod integration is available.\r\n');
+          this.terminal.write('  Full container management coming soon.\r\n');
+      }
+    } catch (error: any) {
+      this.terminal.write(`\r\n\x1b[31m[ERROR]\x1b[0m ${error.message}\r\n`);
+    }
+  }
+
   private async checkLinuxFilesAccess(): Promise<string | null> {
     // Check for ChromeOS Linux Files access
     const possiblePaths = [
@@ -2165,6 +2540,15 @@ echo $! > /tmp/clay-bridge.pid
         // This should never happen, but just in case
         throw new Error('Failed to initialize any bridge');
       }
+
+      // Connect file manager to backend
+      fileManager.setBackend(this.backend);
+      
+      // Connect integrations to backend
+      crosupIntegration.setBackend(this.backend as BackendInterface);
+      chrostiniIntegration.setBackend(this.backend as BackendInterface);
+      virtualBoxIntegration.setBackend(this.backend as BackendInterface);
+      recomodIntegration.setBackend(this.backend as BackendInterface);
 
       // Determine bridge type
       const bridgeType = enhancedBridge.getBridgeType();
@@ -2791,6 +3175,7 @@ echo $! > /tmp/clay-bridge.pid
       this.terminal.write(`  \x1b[32mCtrl+V\x1b[0m       - Paste from clipboard\r\n`);
       this.terminal.write(`  \x1b[32mCtrl+Shift+T\x1b[0m - New terminal tab\r\n`);
       this.terminal.write(`  \x1b[32mCtrl+P\x1b[0m       - Open command palette\r\n`);
+      this.terminal.write(`  \x1b[32mCtrl+E\x1b[0m       - Toggle file manager\r\n`);
       this.terminal.write(`  \x1b[32m↑/↓\x1b[0m          - Command history navigation\r\n\r\n`);
       
       this.terminal.write(`\x1b[33m═══════════════════════════════════════════════════════════════\x1b[0m\r\n`);
@@ -2811,6 +3196,35 @@ echo $! > /tmp/clay-bridge.pid
         this.terminal.write(`  \x1b[32msettings\x1b[0m     - ChromeOS hidden settings unlocker (65+ settings)\r\n`);
         this.terminal.write(`  \x1b[32mwebsite-allowlist\x1b[0m - Override all extensions/policy blocks\r\n`);
       }
+      this.terminal.write(`\r\n`);
+      
+      this.terminal.write(`\x1b[33m═══════════════════════════════════════════════════════════════\x1b[0m\r\n`);
+      this.terminal.write(`\x1b[33m INTEGRATION COMMANDS\x1b[0m\r\n`);
+      this.terminal.write(`\x1b[33m═══════════════════════════════════════════════════════════════\x1b[0m\r\n`);
+      this.terminal.write(`  \x1b[32mcrosup\x1b[0m        - Development environment setup (crosup)\r\n`);
+      this.terminal.write(`    crosup init [toml|hcl]  - Initialize configuration\r\n`);
+      this.terminal.write(`    crosup install <pkgs>   - Install packages\r\n`);
+      this.terminal.write(`    crosup search <query>     - Search nixpkgs\r\n`);
+      this.terminal.write(`    crosup status            - Show status\r\n`);
+      if (this.isChromeOS) {
+        this.terminal.write(`  \x1b[32mchrostini\x1b[0m      - ChromeOS Linux container setup\r\n`);
+        this.terminal.write(`    chrostini init         - Quick setup\r\n`);
+        this.terminal.write(`    chrostini desktop      - Install desktop\r\n`);
+        this.terminal.write(`    chrostini status       - Check status\r\n`);
+        this.terminal.write(`  \x1b[32mrecomod\x1b[0m        - ChromeOS recovery/modding tools\r\n`);
+        this.terminal.write(`    recomod info          - Device information\r\n`);
+        this.terminal.write(`    recomod recovery      - Recovery mode status\r\n`);
+        this.terminal.write(`    recomod firmware      - Firmware info\r\n`);
+        this.terminal.write(`    recomod partitions    - Partition info\r\n`);
+      }
+      this.terminal.write(`  \x1b[32mvbox\x1b[0m / \x1b[32mvirtualbox\x1b[0m - VirtualBox VM management\r\n`);
+      this.terminal.write(`    vbox list               - List all VMs\r\n`);
+      this.terminal.write(`    vbox start <vm>         - Start VM\r\n`);
+      this.terminal.write(`    vbox stop <vm>          - Stop VM\r\n`);
+      this.terminal.write(`  \x1b[32mv86\x1b[0m            - x86 emulator (browser-based)\r\n`);
+      this.terminal.write(`    v86 status             - Check availability\r\n`);
+      this.terminal.write(`  \x1b[32mbrowserpod\x1b[0m      - Browser-based container runtime\r\n`);
+      this.terminal.write(`    browserpod status      - Check status\r\n`);
       this.terminal.write(`\r\n`);
       
       this.terminal.write(`\x1b[36mFor more information, visit: https://github.com/your-repo/clay\x1b[0m\r\n\r\n`);
@@ -2910,6 +3324,43 @@ echo $! > /tmp/clay-bridge.pid
         this.terminal.write(`\x1b[33m[INFO]\x1b[0m Make sure bridge server is running: cd bridge && npm start\r\n`);
       }
       
+      this.writePrompt();
+      return;
+    }
+
+    // Integration Commands
+    if (command.startsWith('crosup ')) {
+      await this.handleCrosupCommand(command);
+      this.writePrompt();
+      return;
+    }
+
+    if (command.startsWith('chrostini ')) {
+      await this.handleChrostiniCommand(command);
+      this.writePrompt();
+      return;
+    }
+
+    if (command.startsWith('vbox ') || command.startsWith('virtualbox ')) {
+      await this.handleVirtualBoxCommand(command);
+      this.writePrompt();
+      return;
+    }
+
+    if (command.startsWith('recomod ') || command === 'recomod') {
+      await this.handleRecoModCommand(command);
+      this.writePrompt();
+      return;
+    }
+
+    if (command.startsWith('v86 ') || command === 'v86') {
+      await this.handleV86Command(command);
+      this.writePrompt();
+      return;
+    }
+
+    if (command.startsWith('browserpod ') || command === 'browserpod') {
+      await this.handleBrowserPodCommand(command);
       this.writePrompt();
       return;
     }
@@ -3817,6 +4268,9 @@ class UIBuilder {
     statusIndicators.appendChild(bridgeStatus);
     statusIndicators.appendChild(aiStatus);
     
+    // File Manager button
+    const fileManagerBtn = this.createIconButton('file-manager-btn', 'folder', 'Files', 'Toggle File Manager');
+    
     // Share button
     const shareBtn = this.createIconButton('share-btn', 'link', 'Share', 'Share Session');
     
@@ -3828,9 +4282,38 @@ class UIBuilder {
     installBtn.style.display = 'none';
     
     actions.appendChild(statusIndicators);
+    actions.appendChild(fileManagerBtn);
     actions.appendChild(shareBtn);
     actions.appendChild(modelBtn);
     actions.appendChild(installBtn);
+    
+    // Attach file manager button handler
+    const updateFileManagerIcon = () => {
+      const icon = fileManager.isVisible ? 'x' : 'folder';
+      const iconEl = fileManagerBtn.querySelector('i');
+      if (iconEl) {
+        iconEl.setAttribute('data-lucide', icon);
+        if ((window as any).lucide) {
+          (window as any).lucide.createIcons();
+        }
+      }
+    };
+
+    fileManagerBtn.addEventListener('click', () => {
+      fileManager.toggle();
+      updateFileManagerIcon();
+    });
+
+    // Register keyboard shortcut for file manager (Ctrl+E)
+    shortcutManager.register({
+      key: 'e',
+      ctrl: true,
+      description: 'Toggle File Manager',
+      callback: () => {
+        fileManager.toggle();
+        updateFileManagerIcon();
+      }
+    });
     
     // Attach share button handler
     shareBtn.addEventListener('click', () => {

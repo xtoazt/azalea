@@ -178,6 +178,30 @@ const ai = getWebLLMService({
 - `scan` - Scan filesystem for AI context
 - `share` - Copy session share link
 
+### Integration Commands
+- `crosup` - Development environment setup tool
+  - `crosup init [toml|hcl]` - Initialize configuration
+  - `crosup install <packages>` - Install development packages
+  - `crosup search <query>` - Search nixpkgs repository
+  - `crosup status` - Show crosup status
+- `chrostini` - ChromeOS Linux container setup (ChromeOS only)
+  - `chrostini init` - Quick development setup
+  - `chrostini desktop` - Install desktop environment
+  - `chrostini status` - Check container status
+- `recomod` - ChromeOS recovery/modding tools (ChromeOS only)
+  - `recomod info` - Device information
+  - `recomod recovery` - Recovery mode status
+  - `recomod firmware` - Firmware information
+  - `recomod partitions` - Partition information
+- `vbox` / `virtualbox` - VirtualBox VM management
+  - `vbox list` - List all VMs
+  - `vbox start <vm>` - Start a VM
+  - `vbox stop <vm>` - Stop a VM
+- `v86` - x86 emulator (browser-based)
+  - `v86 status` - Check v86 availability
+- `browserpod` - Browser-based container runtime
+  - `browserpod status` - Check BrowserPod status
+
 ## 🔒 Security
 
 - Bridge server runs on localhost only (default)
@@ -189,11 +213,31 @@ const ai = getWebLLMService({
 
 See LICENSE file for details.
 
+## 🔌 Integrations
+
+Clay Terminal integrates with several powerful tools and services:
+
+### Development Tools
+- **[crosup](https://github.com/tsirysndr/crosup)** - Quick development environment setup for Chromebook/ChromeOS, macOS, and Linux
+- **[Chrostini-Initializers](https://github.com/francis-chris5/Chrostini-Initializers)** - Rapid ChromeOS Linux container setup scripts
+
+### Virtualization
+- **[VirtualBox](https://github.com/VirtualBox/virtualbox)** - Virtual machine management
+- **[v86](https://github.com/copy/v86)** - x86 PC emulator running in the browser
+- **[BrowserPod](https://github.com/leaningtech/browserpod-meta)** - Browser-based container runtime
+
+### ChromeOS Tools
+- **[RecoMod](https://github.com/MercuryWorkshop/RecoMod)** - ChromeOS recovery and modding tools
+
+All integrations are accessible via terminal commands and work seamlessly with the bridge backend.
+
 ## 🙏 Acknowledgments
 
 - [xterm.js](https://xtermjs.org/) - Terminal emulator
 - [WebLLM](https://webllm.mlc.ai/) - Browser-based AI inference
 - [BrowserPod](https://github.com/leaningtech/browserpod-meta) - Inspiration for in-browser runtime
+- [crosup](https://github.com/tsirysndr/crosup) - Development environment setup
+- [v86](https://github.com/copy/v86) - x86 emulation in browser
 
 ## 🐛 Troubleshooting
 

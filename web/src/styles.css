@@ -9,65 +9,65 @@
   --dark-blue-gray: #424658;
   --peachy-tan: #DEA785;
   
-  /* Background Colors - Pastel */
-  --heroui-background: #F0DAD5;
-  --heroui-foreground: #424658;
-  --heroui-content1: #F0DAD5;
-  --heroui-content2: #F0DAD5;
-  --heroui-content3: #D9A69F;
-  --heroui-content4: #BABBB1;
+  /* Background Colors - Dark Theme */
+  --heroui-background: #2A2D3A;
+  --heroui-foreground: #F0DAD5;
+  --heroui-content1: #2A2D3A;
+  --heroui-content2: #353849;
+  --heroui-content3: #424658;
+  --heroui-content4: #4A4F63;
   
   /* Default/Neutral Colors */
-  --heroui-default: #BABBB1;
-  --heroui-default-50: #F0DAD5;
-  --heroui-default-100: #F0DAD5;
-  --heroui-default-200: #D9A69F;
-  --heroui-default-300: #BABBB1;
-  --heroui-default-400: #BABBB1;
+  --heroui-default: #424658;
+  --heroui-default-50: #2A2D3A;
+  --heroui-default-100: #353849;
+  --heroui-default-200: #424658;
+  --heroui-default-300: #4A4F63;
+  --heroui-default-400: #6C739C;
   --heroui-default-500: #6C739C;
-  --heroui-default-600: #6C739C;
-  --heroui-default-700: #424658;
-  --heroui-default-800: #424658;
-  --heroui-default-900: #424658;
+  --heroui-default-600: #8B92B5;
+  --heroui-default-700: #BABBB1;
+  --heroui-default-800: #D9A69F;
+  --heroui-default-900: #F0DAD5;
   
   /* Primary Colors - Lavender Blue */
   --heroui-primary: #6C739C;
-  --heroui-primary-50: #F0DAD5;
-  --heroui-primary-100: #F0DAD5;
-  --heroui-primary-200: #D9A69F;
-  --heroui-primary-300: #BABBB1;
+  --heroui-primary-50: #2A2D3A;
+  --heroui-primary-100: #353849;
+  --heroui-primary-200: #424658;
+  --heroui-primary-300: #4A4F63;
   --heroui-primary-400: #6C739C;
   --heroui-primary-500: #6C739C;
-  --heroui-primary-600: #424658;
-  --heroui-primary-700: #424658;
-  --heroui-primary-800: #424658;
-  --heroui-primary-900: #424658;
+  --heroui-primary-600: #8B92B5;
+  --heroui-primary-700: #BABBB1;
+  --heroui-primary-800: #D9A69F;
+  --heroui-primary-900: #F0DAD5;
   
   /* Accent Colors */
   --sapphire-primary: #6C739C;
-  --sapphire-400: #6C739C;
+  --sapphire-400: #8B92B5;
   --sapphire-500: #6C739C;
   --sapphire-600: #424658;
   
-  /* Success - Pastel Green */
+  /* Success */
   --heroui-success: #BABBB1;
-  --heroui-success-50: #F0DAD5;
-  --heroui-success-600: #6C739C;
+  --heroui-success-50: #2A2D3A;
+  --heroui-success-600: #8B92B5;
   
   /* Warning - Peachy Tan */
   --heroui-warning: #DEA785;
-  --heroui-warning-50: #F0DAD5;
+  --heroui-warning-50: #2A2D3A;
   --heroui-warning-600: #C56B62;
   
   /* Error - Darker Coral */
   --heroui-error: #C56B62;
-  --heroui-error-50: #F0DAD5;
+  --heroui-error-50: #2A2D3A;
   --heroui-error-600: #C56B62;
   
-  /* Terminal Colors - Light pastel theme */
-  --terminal-bg: #F0DAD5;
-  --terminal-fg: #424658;
-  --terminal-border: #D9A69F;
+  /* Terminal Colors - Dark theme with Lavender Sapphire Mist */
+  --terminal-bg: #1E1F2A;
+  --terminal-fg: #F0DAD5;
+  --terminal-border: #424658;
   
   /* Spacing Scale */
   --spacing-xs: 0.25rem;   /* 4px */
@@ -85,11 +85,11 @@
   --radius-xl: 1rem;       /* 16px */
   --radius-full: 9999px;
   
-  /* Shadows - Soft pastel shadows */
-  --shadow-sm: 0 1px 2px 0 rgba(66, 70, 88, 0.08);
-  --shadow-md: 0 2px 4px 0 rgba(66, 70, 88, 0.1);
-  --shadow-lg: 0 4px 8px 0 rgba(66, 70, 88, 0.12);
-  --shadow-xl: 0 8px 16px 0 rgba(66, 70, 88, 0.15);
+  /* Shadows - Dark theme shadows */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 2px 4px 0 rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 4px 8px 0 rgba(0, 0, 0, 0.5);
+  --shadow-xl: 0 8px 16px 0 rgba(0, 0, 0, 0.6);
   
   /* No transitions - static design */
   --transition-fast: 0ms;
@@ -140,7 +140,7 @@ body {
   flex: 1;
   background: var(--terminal-bg);
   position: relative;
-  border-left: 1px solid var(--heroui-default-200);
+  border-left: 2px solid var(--heroui-default-200);
 }
 
 /* Header - HeroUI Style */
@@ -149,7 +149,7 @@ body {
   padding: 0;
   display: flex;
   align-items: center;
-  border-bottom: 1px solid var(--heroui-default-200);
+  border-bottom: 2px solid var(--heroui-default-200);
   user-select: none;
   height: 52px;
   position: relative;
@@ -222,7 +222,7 @@ body {
   align-items: center;
   gap: var(--spacing-xs);
   padding: 0 var(--spacing-md);
-  border-right: 1px solid var(--heroui-default-200);
+  border-right: 2px solid var(--heroui-default-200);
   margin-right: var(--spacing-md);
   height: 36px;
 }
@@ -291,11 +291,11 @@ body {
 .install-btn,
 .share-btn {
   background: var(--heroui-default-100);
-  border: 1px solid var(--heroui-default-200);
+  border: 2px solid var(--heroui-default-200);
   color: var(--heroui-foreground);
   padding: var(--spacing-sm) var(--spacing-md);
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
   border-radius: var(--radius-lg);
   transition: all var(--transition-base);
@@ -412,7 +412,7 @@ body {
   top: 0;
   bottom: 0;
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+  scrollbar-color: #6C739C transparent;
 }
 
 .xterm-viewport::-webkit-scrollbar {
@@ -424,14 +424,14 @@ body {
 }
 
 .xterm-viewport::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15);
+  background: #6C739C;
   border-radius: var(--radius-full);
   border: 2px solid transparent;
   background-clip: padding-box;
 }
 
 .xterm-viewport::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.25);
+  background: #8B92B5;
 }
 
 .xterm-cursor-layer {
@@ -514,7 +514,7 @@ body {
   left: 0;
   right: 0;
   background: var(--heroui-background);
-  border-top: 1px solid var(--heroui-error-50);
+  border-top: 2px solid var(--heroui-error);
   padding: var(--spacing-md) var(--spacing-lg);
   display: flex;
   align-items: center;
@@ -604,7 +604,7 @@ body {
 
 .model-selector-content {
   background: var(--heroui-background);
-  border: 1px solid var(--heroui-default-200);
+  border: 2px solid var(--heroui-default-200);
   border-radius: var(--radius-xl);
   width: 90%;
   max-width: 640px;
@@ -617,7 +617,7 @@ body {
 
 .model-selector-header {
   padding: var(--spacing-xl);
-  border-bottom: 1px solid var(--heroui-default-200);
+  border-bottom: 2px solid var(--heroui-default-200);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -635,7 +635,7 @@ body {
 
 .close-btn {
   background: transparent;
-  border: 1px solid var(--heroui-default-200);
+  border: 2px solid var(--heroui-default-200);
   color: var(--heroui-default-600);
   font-size: 20px;
   cursor: pointer;
@@ -648,6 +648,7 @@ body {
   border-radius: var(--radius-lg);
   transition: all var(--transition-base);
   line-height: 1;
+  font-weight: 700;
 }
 
 .close-btn:hover {
@@ -685,7 +686,7 @@ body {
   padding: var(--spacing-md) var(--spacing-lg);
   margin: var(--spacing-xs) 0;
   background: var(--heroui-content1);
-  border: 1px solid var(--heroui-default-200);
+  border: 2px solid var(--heroui-default-200);
   border-radius: var(--radius-lg);
   cursor: pointer;
   display: flex;
@@ -722,6 +723,7 @@ body {
 .model-item.active {
   background: var(--heroui-primary-50);
   border-color: var(--heroui-primary);
+  border-width: 2px;
   box-shadow: var(--shadow-sm);
 }
 

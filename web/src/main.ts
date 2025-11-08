@@ -16,6 +16,7 @@ import { shortcutManager } from './utils/keyboard-shortcuts';
 import { commandPalette } from './components/command-palette';
 import { tabBar } from './components/tab-bar';
 import { TerminalTab } from './types/terminal';
+import { multiWindowSync } from './components/multi-window-sync';
 import { getWebLLMService } from './backend-webllm';
 import { settingsUnlockerUI } from './components/settings-unlocker';
 import { getGlobalAIService, chatWithAI, isAIReady } from './standalone-ai';
@@ -118,29 +119,29 @@ class AzaleaWebTerminal {
   private _statusRetryCount: number = 0;
 
   constructor() {
-    // Redesigned terminal with modern dark theme
+    // Terminal with Lavender Sapphire Mist dark theme
     this.terminal = new Terminal({
       theme: {
-        background: '#0a0a0a',
-        foreground: '#e4e4e7',
-        cursor: '#3b82f6',
-        cursorAccent: '#0a0a0a',
-        black: '#1f2937',
-        red: '#ef4444',
-        green: '#10b981',
-        yellow: '#f59e0b',
-        blue: '#3b82f6',
-        magenta: '#8b5cf6',
-        cyan: '#06b6d4',
-        white: '#e4e4e7',
-        brightBlack: '#4b5563',
-        brightRed: '#f87171',
-        brightGreen: '#34d399',
-        brightYellow: '#fbbf24',
-        brightBlue: '#60a5fa',
-        brightMagenta: '#a78bfa',
-        brightCyan: '#22d3ee',
-        brightWhite: '#f9fafb'
+        background: '#1E1F2A',
+        foreground: '#F0DAD5',
+        cursor: '#6C739C',
+        cursorAccent: '#1E1F2A',
+        black: '#2A2D3A',
+        red: '#C56B62',
+        green: '#BABBB1',
+        yellow: '#DEA785',
+        blue: '#6C739C',
+        magenta: '#8B92B5',
+        cyan: '#6C739C',
+        white: '#F0DAD5',
+        brightBlack: '#424658',
+        brightRed: '#C56B62',
+        brightGreen: '#BABBB1',
+        brightYellow: '#DEA785',
+        brightBlue: '#8B92B5',
+        brightMagenta: '#D9A69F',
+        brightCyan: '#8B92B5',
+        brightWhite: '#F0DAD5'
       },
       fontSize: 14,
       fontFamily: '"JetBrains Mono", "Fira Code", "SF Mono", "Menlo", "Monaco", "DejaVu Sans Mono", monospace',
@@ -1379,6 +1380,11 @@ echo $! > /tmp/azalea-bridge.pid
         event.preventDefault();
       }
       
+      // Sync terminal input to other windows
+      if (this.activeTabId) {
+        multiWindowSync.syncTerminalInput(this.activeTabId, data);
+      }
+      
       if (this.isConnected && this.backend && this.backend.getConnected()) {
         // Send directly to backend for real-time terminal
         this.backend.sendInput(data);
@@ -1872,7 +1878,26 @@ echo $! > /tmp/azalea-bridge.pid
     });
   }
 
+  private setupMultiWindowSync(): void {
+    // Set up callbacks for receiving synced data from other windows
+    multiWindowSync.onTerminalOutput((tabId: string, output: string) => {
+      // Only write if it's not from this window's active tab
+      if (tabId !== this.activeTabId) {
+        // Could show in a different terminal instance or indicator
+        // For now, we'll just show a visual indicator
+      }
+    });
+    
+    multiWindowSync.onTerminalInput((tabId: string, input: string) => {
+      // Handle input from other windows if needed
+      // This could be used for collaborative editing
+    });
+  }
+
   private initializeTabSystem(): void {
+    // Initialize multi-window sync
+    this.setupMultiWindowSync();
+    
     // Initialize tab bar
     tabBar.initialize({
       onTabCreate: () => {
@@ -1903,6 +1928,9 @@ echo $! > /tmp/azalea-bridge.pid
     this.tabs.push(initialTab);
     this.activeTabId = initialTab.id;
     tabBar.addTab(initialTab);
+    
+    // Sync initial tab
+    multiWindowSync.syncTab(initialTab);
 
     // Add keyboard shortcuts for tabs
     shortcutManager.register({
@@ -1980,6 +2008,9 @@ echo $! > /tmp/azalea-bridge.pid
 
     this.tabs = this.tabs.filter(t => t.id !== tabId);
     tabBar.removeTab(tabId);
+    
+    // Sync tab close
+    multiWindowSync.syncTabClose(tabId);
 
     if (this.activeTabId === tabId) {
       if (this.tabs.length > 0) {
@@ -2004,6 +2035,10 @@ echo $! > /tmp/azalea-bridge.pid
     // For now, we only have one terminal instance
     
     tabBar.switchTab(tabId);
+    
+    // Sync tab switch
+    multiWindowSync.syncTabSwitch(tabId, true);
+    
     notificationManager.info(`Switched to ${tab.title}`);
   }
 
@@ -2012,6 +2047,9 @@ echo $! > /tmp/azalea-bridge.pid
     if (tab) {
       tab.title = newTitle;
       tabBar.renameTab(tabId, newTitle);
+      
+      // Sync tab rename
+      multiWindowSync.syncTabRename(tabId, newTitle);
     }
   }
 
@@ -3152,6 +3190,10 @@ echo $! > /tmp/azalea-bridge.pid
       // Set up output handler
       this.backend!.onOutput((data: string) => {
         this.terminal.write(data);
+        // Sync terminal output to other windows
+        if (this.activeTabId) {
+          multiWindowSync.syncTerminalOutput(this.activeTabId, data);
+        }
       });
       
       this.backend!.onExit((code: number, signal: number) => {

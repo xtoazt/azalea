@@ -1,6 +1,7 @@
 // Tab bar component for multi-tab terminal management
 
 import { TerminalTab } from '../types/terminal';
+import { multiWindowSync } from './multi-window-sync';
 
 export interface TabBarConfig {
   onTabCreate: () => void;
@@ -62,15 +63,13 @@ class TabBar {
         .terminal-tab-bar {
           display: flex;
           align-items: center;
-          background: rgba(17, 24, 39, 0.95);
-          backdrop-filter: blur(20px);
-          -webkit-backdrop-filter: blur(20px);
-          border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+          background: #2A2D3A;
+          border-bottom: 2px solid #424658;
           padding: 0.25rem 0.5rem;
           gap: 0.25rem;
           overflow-x: auto;
           scrollbar-width: thin;
-          scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+          scrollbar-color: #6C739C transparent;
         }
         
         .terminal-tab-bar::-webkit-scrollbar {
@@ -82,7 +81,7 @@ class TabBar {
         }
         
         .terminal-tab-bar::-webkit-scrollbar-thumb {
-          background: rgba(255, 255, 255, 0.2);
+          background: #6C739C;
           border-radius: 3px;
         }
         
@@ -91,36 +90,45 @@ class TabBar {
           align-items: center;
           gap: 0.5rem;
           padding: 0.5rem 0.75rem;
-          background: rgba(255, 255, 255, 0.05);
-          border: 1px solid rgba(255, 255, 255, 0.1);
+          background: #353849;
+          border: 2px solid #424658;
           border-radius: 0.5rem 0.5rem 0 0;
           cursor: pointer;
-          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
           min-width: 120px;
           max-width: 200px;
           position: relative;
           user-select: none;
-          animation: slideIn 0.2s ease-out;
         }
         
         .terminal-tab:hover {
-          background: rgba(255, 255, 255, 0.1);
+          background: #424658;
+          border-color: #6C739C;
         }
         
         .terminal-tab.active {
-          background: rgba(59, 130, 246, 0.15);
-          border-color: rgba(59, 130, 246, 0.3);
+          background: #2A2D3A;
+          border-color: #6C739C;
           border-bottom-color: transparent;
         }
         
         .terminal-tab.active::after {
           content: '';
           position: absolute;
-          bottom: -1px;
+          bottom: -2px;
           left: 0;
           right: 0;
           height: 2px;
-          background: rgba(59, 130, 246, 0.5);
+          background: #6C739C;
+        }
+        
+        .terminal-tab.synced {
+          border-left: 3px solid #8B92B5;
+        }
+        
+        .terminal-tab.synced::before {
+          content: '🔗';
+          font-size: 0.75rem;
+          margin-right: 0.25rem;
         }
         
         .terminal-tab-title {
@@ -128,9 +136,9 @@ class TabBar {
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
-          color: #e4e4e7;
+          color: #F0DAD5;
           font-size: 0.875rem;
-          font-weight: 500;
+          font-weight: 600;
         }
         
         .terminal-tab-close {
@@ -141,14 +149,14 @@ class TabBar {
           justify-content: center;
           border-radius: 0.25rem;
           opacity: 0.6;
-          transition: all 0.2s;
           flex-shrink: 0;
+          color: #F0DAD5;
         }
         
         .terminal-tab-close:hover {
           opacity: 1;
-          background: rgba(239, 68, 68, 0.2);
-          color: #ef4444;
+          background: #C56B62;
+          color: #F0DAD5;
         }
         
         .terminal-tab-close svg {
@@ -162,19 +170,18 @@ class TabBar {
           display: flex;
           align-items: center;
           justify-content: center;
-          background: rgba(255, 255, 255, 0.05);
-          border: 1px solid rgba(255, 255, 255, 0.1);
+          background: #353849;
+          border: 2px solid #424658;
           border-radius: 0.5rem;
-          color: #9ca3af;
+          color: #F0DAD5;
           cursor: pointer;
-          transition: all 0.2s;
           flex-shrink: 0;
+          font-weight: 700;
         }
         
         .tab-add-button:hover {
-          background: rgba(255, 255, 255, 0.1);
-          color: #e4e4e7;
-          transform: scale(1.05);
+          background: #424658;
+          border-color: #6C739C;
         }
       `;
       document.head.appendChild(style);
@@ -248,7 +255,9 @@ class TabBar {
     // Add tabs
     this.tabs.forEach(tab => {
       const tabElement = document.createElement('div');
-      tabElement.className = `terminal-tab ${tab.isActive ? 'active' : ''}`;
+      const syncedTabs = multiWindowSync.getSyncedTabs();
+      const isSynced = syncedTabs.some(st => st.id === tab.id && !st.isLocal);
+      tabElement.className = `terminal-tab ${tab.isActive ? 'active' : ''} ${isSynced ? 'synced' : ''}`;
       tabElement.dataset.tabId = tab.id;
       
       const title = document.createElement('span');

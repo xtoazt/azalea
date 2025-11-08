@@ -1,62 +1,73 @@
-/* HeroUI-Inspired Design System */
+/* Lavender Sapphire Mist Design System - Pastel, No Gradients, No Animations */
 :root {
-  /* HeroUI Color Palette - Light Mode */
-  --heroui-background: #ffffff;
-  --heroui-foreground: #11181c;
-  --heroui-content1: #ffffff;
-  --heroui-content2: #f4f4f5;
-  --heroui-content3: #e4e4e7;
-  --heroui-content4: #d4d4d8;
-  --heroui-default: #e4e4e7;
-  --heroui-default-50: #fafafa;
-  --heroui-default-100: #f4f4f5;
-  --heroui-default-200: #e4e4e7;
-  --heroui-default-300: #d4d4d8;
-  --heroui-default-400: #a1a1aa;
-  --heroui-default-500: #71717a;
-  --heroui-default-600: #52525b;
-  --heroui-default-700: #3f3f46;
-  --heroui-default-800: #27272a;
-  --heroui-default-900: #18181b;
+  /* Lavender Sapphire Mist Color Palette */
+  --lavender-blue: #6C739C;
+  --light-pink-coral: #D9A69F;
+  --very-light-peach: #F0DAD5;
+  --muted-gray-green: #BABBB1;
+  --darker-coral: #C56B62;
+  --dark-blue-gray: #424658;
+  --peachy-tan: #DEA785;
   
-  /* Primary Colors - Lavender Sapphire Mist */
-  --heroui-primary: #8B5CF6;
-  --heroui-primary-50: #F5F3FF;
-  --heroui-primary-100: #EDE9FE;
-  --heroui-primary-200: #DDD6FE;
-  --heroui-primary-300: #C4B5FD;
-  --heroui-primary-400: #A78BFA;
-  --heroui-primary-500: #8B5CF6;
-  --heroui-primary-600: #7C3AED;
-  --heroui-primary-700: #6D28D9;
-  --heroui-primary-800: #5B21B6;
-  --heroui-primary-900: #4C1D95;
+  /* Background Colors - Pastel */
+  --heroui-background: #F0DAD5;
+  --heroui-foreground: #424658;
+  --heroui-content1: #F0DAD5;
+  --heroui-content2: #F0DAD5;
+  --heroui-content3: #D9A69F;
+  --heroui-content4: #BABBB1;
   
-  /* Sapphire Accent */
-  --sapphire-primary: #3B82F6;
-  --sapphire-400: #60A5FA;
-  --sapphire-500: #3B82F6;
-  --sapphire-600: #2563EB;
+  /* Default/Neutral Colors */
+  --heroui-default: #BABBB1;
+  --heroui-default-50: #F0DAD5;
+  --heroui-default-100: #F0DAD5;
+  --heroui-default-200: #D9A69F;
+  --heroui-default-300: #BABBB1;
+  --heroui-default-400: #BABBB1;
+  --heroui-default-500: #6C739C;
+  --heroui-default-600: #6C739C;
+  --heroui-default-700: #424658;
+  --heroui-default-800: #424658;
+  --heroui-default-900: #424658;
   
-  /* Success */
-  --heroui-success: #17c964;
-  --heroui-success-50: #e6faf0;
-  --heroui-success-600: #13a452;
+  /* Primary Colors - Lavender Blue */
+  --heroui-primary: #6C739C;
+  --heroui-primary-50: #F0DAD5;
+  --heroui-primary-100: #F0DAD5;
+  --heroui-primary-200: #D9A69F;
+  --heroui-primary-300: #BABBB1;
+  --heroui-primary-400: #6C739C;
+  --heroui-primary-500: #6C739C;
+  --heroui-primary-600: #424658;
+  --heroui-primary-700: #424658;
+  --heroui-primary-800: #424658;
+  --heroui-primary-900: #424658;
   
-  /* Warning */
-  --heroui-warning: #f5a524;
-  --heroui-warning-50: #fef7e6;
-  --heroui-warning-600: #c2841d;
+  /* Accent Colors */
+  --sapphire-primary: #6C739C;
+  --sapphire-400: #6C739C;
+  --sapphire-500: #6C739C;
+  --sapphire-600: #424658;
   
-  /* Error */
-  --heroui-error: #f31260;
-  --heroui-error-50: #fce6ed;
-  --heroui-error-600: #c20e4d;
+  /* Success - Pastel Green */
+  --heroui-success: #BABBB1;
+  --heroui-success-50: #F0DAD5;
+  --heroui-success-600: #6C739C;
   
-  /* Terminal Colors - Dark theme for contrast */
-  --terminal-bg: #0a0a0a;
-  --terminal-fg: #e4e4e7;
-  --terminal-border: #27272a;
+  /* Warning - Peachy Tan */
+  --heroui-warning: #DEA785;
+  --heroui-warning-50: #F0DAD5;
+  --heroui-warning-600: #C56B62;
+  
+  /* Error - Darker Coral */
+  --heroui-error: #C56B62;
+  --heroui-error-50: #F0DAD5;
+  --heroui-error-600: #C56B62;
+  
+  /* Terminal Colors - Light pastel theme */
+  --terminal-bg: #F0DAD5;
+  --terminal-fg: #424658;
+  --terminal-border: #D9A69F;
   
   /* Spacing Scale */
   --spacing-xs: 0.25rem;   /* 4px */
@@ -74,16 +85,16 @@
   --radius-xl: 1rem;       /* 16px */
   --radius-full: 9999px;
   
-  /* Shadows - HeroUI style */
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
-  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  /* Shadows - Soft pastel shadows */
+  --shadow-sm: 0 1px 2px 0 rgba(66, 70, 88, 0.08);
+  --shadow-md: 0 2px 4px 0 rgba(66, 70, 88, 0.1);
+  --shadow-lg: 0 4px 8px 0 rgba(66, 70, 88, 0.12);
+  --shadow-xl: 0 8px 16px 0 rgba(66, 70, 88, 0.15);
   
-  /* Transitions */
-  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
-  --transition-base: 200ms cubic-bezier(0.4, 0, 0.2, 1);
-  --transition-slow: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+  /* No transitions - static design */
+  --transition-fast: 0ms;
+  --transition-base: 0ms;
+  --transition-slow: 0ms;
 }
 
 * {
@@ -314,14 +325,12 @@ body {
 .install-btn:hover {
   background: var(--heroui-default-200);
   border-color: var(--heroui-default-300);
-  transform: translateY(-1px);
   box-shadow: var(--shadow-md);
 }
 
 .model-btn:active,
 .share-btn:active,
 .install-btn:active {
-  transform: translateY(0);
   box-shadow: var(--shadow-sm);
 }
 
@@ -488,12 +497,7 @@ body {
   border: 3px solid var(--heroui-default-200);
   border-top-color: var(--heroui-primary);
   border-radius: var(--radius-full);
-  animation: spin 0.8s linear infinite;
   margin-bottom: var(--spacing-lg);
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
 }
 
 .loading-overlay p {
@@ -516,18 +520,6 @@ body {
   align-items: center;
   z-index: 1000;
   box-shadow: var(--shadow-xl);
-  animation: slideUp var(--transition-slow) cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-@keyframes slideUp {
-  from {
-    transform: translateY(100%);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
 }
 
 .error-content {
@@ -585,12 +577,7 @@ body {
 .quick-fix-btn:hover {
   background: var(--heroui-warning);
   color: white;
-  transform: translateY(-1px);
   box-shadow: var(--shadow-md);
-}
-
-.quick-fix-btn:active {
-  transform: translateY(0);
 }
 
 .quick-fix-btn i[data-lucide] {
@@ -607,18 +594,12 @@ body {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(66, 70, 88, 0.4);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 2000;
   backdrop-filter: blur(8px);
-  animation: fadeIn var(--transition-base);
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
 }
 
 .model-selector-content {
@@ -632,18 +613,6 @@ body {
   flex-direction: column;
   box-shadow: var(--shadow-xl);
   overflow: hidden;
-  animation: scaleIn var(--transition-slow) cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-@keyframes scaleIn {
-  from {
-    transform: scale(0.95) translateY(10px);
-    opacity: 0;
-  }
-  to {
-    transform: scale(1) translateY(0);
-    opacity: 1;
-  }
 }
 
 .model-selector-header {
@@ -685,7 +654,6 @@ body {
   background: var(--heroui-default-100);
   border-color: var(--heroui-default-300);
   color: var(--heroui-foreground);
-  transform: rotate(90deg);
 }
 
 .model-list {
@@ -744,7 +712,6 @@ body {
 .model-item:hover {
   background: var(--heroui-content2);
   border-color: var(--heroui-default-300);
-  transform: translateX(4px);
   box-shadow: var(--shadow-md);
 }
 
@@ -787,18 +754,6 @@ body {
   font-weight: 700;
   flex-shrink: 0;
   line-height: 1;
-  animation: checkmarkIn var(--transition-base);
-}
-
-@keyframes checkmarkIn {
-  from {
-    transform: scale(0) rotate(-180deg);
-    opacity: 0;
-  }
-  to {
-    transform: scale(1) rotate(0deg);
-    opacity: 1;
-  }
 }
 
 /* Responsive */
@@ -874,9 +829,9 @@ button:focus-visible,
   border-radius: var(--radius-sm);
 }
 
-/* Smooth transitions */
+/* No transitions - static design */
 * {
-  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter;
-  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-  transition-duration: 150ms;
+  transition-property: none;
+  transition-timing-function: none;
+  transition-duration: 0ms;
 }

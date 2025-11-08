@@ -5093,34 +5093,34 @@ function renderLanding(): void {
   sidebar.className = 'sidebar w-20 flex flex-col items-center py-6 relative z-10';
   sidebar.innerHTML = `
       <div class="mb-8">
-        <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-600 to-orange-600 flex items-center justify-center shadow-lg">
+        <div class="w-12 h-12 rounded-xl bg-gradient-lavender-sapphire flex items-center justify-center shadow-lavender">
           <span class="text-white font-bold text-xl">C</span>
         </div>
       </div>
     <nav class="flex-1 flex flex-col gap-4 w-full px-2">
       <button class="sidebar-item active w-full p-3 rounded-lg flex items-center justify-center group relative" title="Home">
-        <svg class="w-6 h-6 text-blue-400 group-hover:text-blue-300 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg class="w-6 h-6 text-lavender-400 group-hover:text-lavender-300 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
         </svg>
         </button>
       <button class="sidebar-item w-full p-3 rounded-lg flex items-center justify-center group relative" title="Calendar">
-        <svg class="w-6 h-6 text-gray-400 group-hover:text-blue-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg class="w-6 h-6 text-mist-400 group-hover:text-sapphire-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
           </svg>
       </button>
       <button class="sidebar-item w-full p-3 rounded-lg flex items-center justify-center group relative" title="Analytics">
-        <svg class="w-6 h-6 text-gray-400 group-hover:text-blue-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg class="w-6 h-6 text-mist-400 group-hover:text-sapphire-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
           </svg>
         </button>
       <div class="h-px bg-white/10 my-2"></div>
       <button class="sidebar-item w-full p-3 rounded-lg flex items-center justify-center group relative" title="Settings">
-        <svg class="w-6 h-6 text-gray-400 group-hover:text-blue-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg class="w-6 h-6 text-mist-400 group-hover:text-sapphire-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-3.318 4.325-3.318 2.4 0 4.899 1.562 4.325 3.318m-1.455 4.315c-.426 1.756-1.924 2.318-4.325 2.318-2.4 0-3.899-.562-4.325-2.318m-1.455 4.315c.426 1.756 2.924 3.318 4.325 3.318 2.4 0 4.899-1.562 4.325-3.318m-1.455-4.315c-.426-1.756-1.924-2.318-4.325-2.318-2.4 0-3.899.562-4.325 2.318"/>
         </svg>
       </button>
       <button class="sidebar-item w-full p-3 rounded-lg flex items-center justify-center group relative" title="User">
-        <svg class="w-6 h-6 text-gray-400 group-hover:text-blue-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg class="w-6 h-6 text-mist-400 group-hover:text-sapphire-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
         </svg>
       </button>
@@ -5136,26 +5136,26 @@ function renderLanding(): void {
       <div class="flex items-center justify-between">
         <div>
           <h1 class="text-3xl font-bold text-white mb-1">Take Control of your Chromebook</h1>
-          <p class="text-gray-400 text-sm">Unlock 65+ hidden settings and full system access</p>
+          <p class="text-mist-400 text-sm">Unlock 65+ hidden settings and full system access</p>
           </div>
         <div class="flex items-center gap-4">
           <div class="flex items-center gap-2 px-4 py-2 glass rounded-lg">
-            <div class="w-8 h-8 rounded-full bg-gradient-to-br from-blue-600 to-orange-600 flex items-center justify-center text-white font-semibold text-sm">JB</div>
+            <div class="w-8 h-8 rounded-full bg-gradient-lavender-sapphire flex items-center justify-center text-white font-semibold text-sm shadow-lavender">JB</div>
             <span class="text-white text-sm font-medium">James Brown</span>
-            <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-4 h-4 text-mist-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
             </svg>
         </div>
           <button class="p-2 glass rounded-lg hover:bg-white/5 transition-all">
-            <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-5 h-5 text-mist-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
             </svg>
           </button>
           <button id="theme-toggle" class="p-2 glass rounded-lg hover:bg-white/5 transition-all">
-            <svg id="sun-icon" class="w-5 h-5 text-gray-400 dark:hidden" fill="currentColor" viewBox="0 0 20 20">
+            <svg id="sun-icon" class="w-5 h-5 text-mist-400 dark:hidden" fill="currentColor" viewBox="0 0 20 20">
               <path fill-rule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clip-rule="evenodd"/>
             </svg>
-            <svg id="moon-icon" class="w-5 h-5 text-gray-400 hidden dark:block" fill="currentColor" viewBox="0 0 20 20">
+            <svg id="moon-icon" class="w-5 h-5 text-mist-400 hidden dark:block" fill="currentColor" viewBox="0 0 20 20">
               <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/>
             </svg>
           </button>
@@ -5170,19 +5170,19 @@ function renderLanding(): void {
         <div class="mb-8">
           <h1 class="text-6xl md:text-7xl font-bold text-white mb-4 tracking-tight animate-fade-up">
             Take Control of
-            <span class="block bg-gradient-to-r from-blue-400 to-orange-400 bg-clip-text text-transparent">your Chromebook</span>
+            <span class="block bg-gradient-lavender-sapphire bg-clip-text text-transparent">your Chromebook</span>
       </h1>
-          <p class="text-xl text-gray-300 mb-8 max-w-3xl leading-relaxed animate-fade-up" style="animation-delay: 0.1s;">
+          <p class="text-xl text-mist-300 mb-8 max-w-3xl leading-relaxed animate-fade-up" style="animation-delay: 0.1s;">
         Azalea gives you complete control over your Chromebook with 65+ hidden settings, AI-augmented terminal, full system access, and the power to override any restriction. Unlock the true potential of ChromeOS.
       </p>
           <div class="flex gap-4 flex-wrap animate-fade-up" style="animation-delay: 0.2s;">
-            <button id="open-terminal" class="px-8 py-4 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white rounded-xl font-semibold text-lg shadow-lg hover:shadow-xl transition-all transform hover:scale-[1.02] active:scale-[0.98] border border-blue-500/50 focus:outline-none focus:ring-2 focus:ring-blue-500/50" aria-label="Open Terminal">
+            <button id="open-terminal" class="px-8 py-4 bg-gradient-lavender-sapphire hover:opacity-90 text-white rounded-xl font-semibold text-lg shadow-sapphire hover:shadow-glow-sapphire transition-all transform hover:scale-[1.02] active:scale-[0.98] border border-lavender-400/50 focus:outline-none focus:ring-2 focus:ring-lavender-500/50" aria-label="Open Terminal">
           Open Terminal
         </button>
-            <a href="https://www.npmjs.com/package/azalea-terminal" target="_blank" rel="noopener noreferrer" class="px-8 py-4 glass hover:bg-white/5 text-white rounded-xl font-semibold text-lg transition-all transform hover:scale-[1.02] active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-blue-500/50" aria-label="View Documentation">
+            <a href="https://www.npmjs.com/package/azalea-terminal" target="_blank" rel="noopener noreferrer" class="px-8 py-4 glass hover:bg-white/5 text-white rounded-xl font-semibold text-lg transition-all transform hover:scale-[1.02] active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-lavender-500/50" aria-label="View Documentation">
           Documentation
         </a>
-            <button id="install-pwa-btn-hero" class="px-8 py-4 bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-500 hover:to-orange-600 text-white rounded-xl font-semibold text-lg shadow-lg hover:shadow-xl transition-all transform hover:scale-[1.02] active:scale-[0.98] border border-orange-500/50 focus:outline-none focus:ring-2 focus:ring-orange-500/50" style="display: none;" aria-label="Install App">
+            <button id="install-pwa-btn-hero" class="px-8 py-4 bg-gradient-to-r from-lavender-600 to-sapphire-600 hover:from-lavender-500 hover:to-sapphire-500 text-white rounded-xl font-semibold text-lg shadow-lavender hover:shadow-glow-lavender transition-all transform hover:scale-[1.02] active:scale-[0.98] border border-lavender-400/50 focus:outline-none focus:ring-2 focus:ring-lavender-500/50" style="display: none;" aria-label="Install App">
           📱 Install App
         </button>
       </div>
@@ -5193,46 +5193,46 @@ function renderLanding(): void {
           <!-- Clock Card -->
           <div class="glass rounded-2xl p-6 card-glow-blue">
           <h2 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-            <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-5 h-5 text-sapphire-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
             </svg>
               Current Time
           </h2>
-            <div id="clock" class="text-4xl font-bold text-white mb-2 bg-gradient-to-r from-blue-400 to-blue-300 bg-clip-text text-transparent"></div>
-          <div id="date" class="text-sm text-gray-400"></div>
+            <div id="clock" class="text-4xl font-bold text-white mb-2 bg-gradient-to-r from-sapphire-400 to-sapphire-300 bg-clip-text text-transparent"></div>
+          <div id="date" class="text-sm text-mist-400"></div>
         </div>
 
           <!-- Terminal Stats Card -->
           <div class="glass rounded-2xl p-6 card-glow-orange">
           <h2 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-              <svg class="w-5 h-5 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg class="w-5 h-5 text-lavender-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
               </svg>
               Terminal Status
             </h2>
-            <div class="text-4xl font-bold text-white mb-2 bg-gradient-to-r from-orange-400 to-orange-300 bg-clip-text text-transparent">Ready</div>
-            <div class="text-sm text-gray-400">All systems operational</div>
+            <div class="text-4xl font-bold text-white mb-2 bg-gradient-to-r from-lavender-400 to-lavender-300 bg-clip-text text-transparent">Ready</div>
+            <div class="text-sm text-mist-400">All systems operational</div>
           </div>
 
           <!-- Features Card -->
           <div class="glass rounded-2xl p-6 card-glow-blue md:col-span-2 lg:col-span-1">
             <h2 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-              <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg class="w-5 h-5 text-sapphire-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
             </svg>
               Latest Features
           </h2>
-          <ul class="space-y-3 text-gray-300" id="updates-list">
+          <ul class="space-y-3 text-mist-300" id="updates-list">
             <li class="flex items-start gap-3">
-              <span class="text-blue-400 mt-1 font-bold">▸</span>
+              <span class="text-sapphire-400 mt-1 font-bold">▸</span>
                 <span><span class="text-white font-medium">Tab Completion</span> - Press Tab for autocomplete</span>
             </li>
             <li class="flex items-start gap-3">
-                <span class="text-orange-400 mt-1 font-bold">▸</span>
+                <span class="text-lavender-400 mt-1 font-bold">▸</span>
                 <span><span class="text-white font-medium">History Search</span> - Ctrl+R for command search</span>
             </li>
             <li class="flex items-start gap-3">
-              <span class="text-blue-400 mt-1 font-bold">▸</span>
+              <span class="text-sapphire-400 mt-1 font-bold">▸</span>
                 <span><span class="text-white font-medium">AI Integration</span> - JOSIEFIED model powered</span>
             </li>
           </ul>
@@ -5355,43 +5355,43 @@ function renderTerminalView(): void {
   layout.innerHTML = `
     <!-- Left Sidebar Navigation -->
     <aside class="sidebar w-20 flex flex-col items-center py-6 relative z-10">
-      <button id="back-home" class="mb-8 w-12 h-12 rounded-xl glass flex items-center justify-center group hover:bg-white/5 transition-all" title="Back to Dashboard">
-        <svg class="w-6 h-6 text-gray-400 group-hover:text-blue-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <button id="back-home" class="mb-8 w-12 h-12 rounded-xl glass flex items-center justify-center group hover:bg-white/5 transition-all" title="Back to Dashboard">
+        <svg class="w-6 h-6 text-mist-400 group-hover:text-lavender-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
             </svg>
           </button>
       <nav class="flex-1 flex flex-col gap-4 w-full px-2">
         <button id="sidebar-terminal" class="sidebar-item active w-full p-3 rounded-lg flex items-center justify-center group relative" title="Terminal">
-          <svg class="w-6 h-6 text-blue-400 group-hover:text-blue-300 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg class="w-6 h-6 text-lavender-400 group-hover:text-lavender-300 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
           </svg>
         </button>
         <button id="sidebar-settings" class="sidebar-item w-full p-3 rounded-lg flex items-center justify-center group relative" title="Settings" aria-label="Open ChromeOS Settings" type="button">
-          <svg class="w-6 h-6 text-gray-400 group-hover:text-blue-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <svg class="w-6 h-6 text-mist-400 group-hover:text-sapphire-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-3.318 4.325-3.318 2.4 0 4.899 1.562 4.325 3.318m-1.455 4.315c-.426 1.756-1.924 2.318-4.325 2.318-2.4 0-3.899-.562-4.325-2.318m-1.455 4.315c.426 1.756 2.924 3.318 4.325 3.318 2.4 0 4.899-1.562 4.325-3.318m-1.455-4.315c-.426-1.756-1.924-2.318-4.325-2.318-2.4 0-3.899.562-4.325 2.318"/>
           </svg>
         </button>
         <button id="sidebar-files" class="sidebar-item w-full p-3 rounded-lg flex items-center justify-center group relative" title="Scan Files" aria-label="Scan Filesystem" type="button">
-          <svg class="w-6 h-6 text-gray-400 group-hover:text-blue-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <svg class="w-6 h-6 text-mist-400 group-hover:text-sapphire-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
           </svg>
         </button>
         <button id="sidebar-history" class="sidebar-item w-full p-3 rounded-lg flex items-center justify-center group relative" title="History" aria-label="Command History" type="button">
-          <svg class="w-6 h-6 text-gray-400 group-hover:text-blue-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <svg class="w-6 h-6 text-mist-400 group-hover:text-sapphire-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
           </svg>
         </button>
         <button id="sidebar-ai" class="sidebar-item w-full p-3 rounded-lg flex items-center justify-center group relative" title="AI Assistant" aria-label="AI Assistant Help" type="button">
-          <svg class="w-6 h-6 text-gray-400 group-hover:text-orange-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <svg class="w-6 h-6 text-mist-400 group-hover:text-lavender-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
           </svg>
         </button>
         <div class="h-px bg-white/10 my-2" role="separator" aria-hidden="true"></div>
         <button id="sidebar-model" class="sidebar-item w-full p-3 rounded-lg flex flex-col items-center justify-center group relative" title="AI Model" aria-label="Select AI Model" type="button">
-          <svg class="w-5 h-5 text-gray-400 group-hover:text-blue-400 transition-colors mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <svg class="w-5 h-5 text-mist-400 group-hover:text-sapphire-400 transition-colors mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
           </svg>
-          <select id="model-select-sidebar" class="w-full text-xs bg-transparent text-gray-400 border-none outline-none cursor-pointer" aria-label="Select AI model quantization">
+          <select id="model-select-sidebar" class="w-full text-xs bg-transparent text-mist-400 border-none outline-none cursor-pointer" aria-label="Select AI model quantization">
             <option value="q4f16_1">Q4</option>
             <option value="q4f32_1">Q4F32</option>
             <option value="q8f16_1">Q8</option>
@@ -5399,15 +5399,15 @@ function renderTerminalView(): void {
           </select>
         </button>
         <button id="sidebar-theme" class="sidebar-item w-full p-3 rounded-lg flex items-center justify-center group relative" title="Theme" aria-label="Toggle Theme" type="button">
-          <svg id="sun-icon-sidebar" class="w-6 h-6 text-gray-400 group-hover:text-blue-400 transition-colors dark:hidden" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+          <svg id="sun-icon-sidebar" class="w-6 h-6 text-mist-400 group-hover:text-sapphire-400 transition-colors dark:hidden" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
             <path fill-rule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clip-rule="evenodd"/>
           </svg>
-          <svg id="moon-icon-sidebar" class="w-6 h-6 text-gray-400 group-hover:text-blue-400 transition-colors hidden dark:block" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+          <svg id="moon-icon-sidebar" class="w-6 h-6 text-mist-400 group-hover:text-sapphire-400 transition-colors hidden dark:block" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
             <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/>
           </svg>
         </button>
         <button id="sidebar-share" class="sidebar-item w-full p-3 rounded-lg flex items-center justify-center group relative" title="Share Session - Share terminal session via URL" aria-label="Share Terminal Session" type="button">
-          <svg class="w-6 h-6 text-gray-400 group-hover:text-blue-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <svg class="w-6 h-6 text-mist-400 group-hover:text-sapphire-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/>
           </svg>
         </button>
@@ -5421,26 +5421,26 @@ function renderTerminalView(): void {
         <div class="flex items-center gap-3 flex-wrap">
           <!-- Status Indicators Only -->
           <div id="webvm-status" class="flex items-center gap-2 px-3 py-1.5 rounded-lg glass hover:bg-white/5 transition-all">
-              <div id="webvm-dot" class="w-2 h-2 rounded-full bg-gray-500"></div>
-              <span id="webvm-text" class="text-xs text-gray-300 font-medium">WebVM</span>
+              <div id="webvm-dot" class="w-2 h-2 rounded-full bg-mist-500"></div>
+              <span id="webvm-text" class="text-xs text-mist-300 font-medium">WebVM</span>
             </div>
           <div id="bridge-status" class="flex items-center gap-2 px-3 py-1.5 rounded-lg glass hover:bg-white/5 transition-all">
-              <div id="bridge-dot" class="w-2 h-2 rounded-full bg-gray-500"></div>
-              <span id="bridge-text" class="text-xs text-gray-300 font-medium">Bridge</span>
+              <div id="bridge-dot" class="w-2 h-2 rounded-full bg-mist-500"></div>
+              <span id="bridge-text" class="text-xs text-mist-300 font-medium">Bridge</span>
             </div>
           <div id="websocket-status" class="flex items-center gap-2 px-3 py-1.5 rounded-lg glass hover:bg-white/5 transition-all">
-              <div id="websocket-dot" class="w-2 h-2 rounded-full bg-gray-500"></div>
-              <span id="websocket-text" class="text-xs text-gray-300 font-medium">WS</span>
+              <div id="websocket-dot" class="w-2 h-2 rounded-full bg-mist-500"></div>
+              <span id="websocket-text" class="text-xs text-mist-300 font-medium">WS</span>
             </div>
           <div id="ai-status" class="flex items-center gap-2 px-3 py-1.5 rounded-lg glass hover:bg-white/5 transition-all">
-              <div id="ai-dot" class="w-2 h-2 rounded-full bg-gray-500"></div>
-              <span id="ai-text" class="text-xs text-gray-300 font-medium">AI</span>
+              <div id="ai-dot" class="w-2 h-2 rounded-full bg-mist-500"></div>
+              <span id="ai-text" class="text-xs text-mist-300 font-medium">AI</span>
             </div>
           <div id="os-info" class="px-3 py-1.5 rounded-lg glass">
-              <span id="os-text" class="text-xs text-gray-300 font-medium">OS: Unknown</span>
+              <span id="os-text" class="text-xs text-mist-300 font-medium">OS: Unknown</span>
             </div>
           <div id="cpu-usage" class="px-3 py-1.5 rounded-lg glass">
-              <span id="cpu-text" class="text-xs text-gray-300 font-medium">CPU: --</span>
+              <span id="cpu-text" class="text-xs text-mist-300 font-medium">CPU: --</span>
             </div>
             </div>
           </div>

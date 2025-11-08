@@ -86,7 +86,11 @@ export class BrowserAutomation {
     // Toggle visibility
     const toggleBtn = document.getElementById('ba-toggle');
     if (toggleBtn) {
-      toggleBtn.addEventListener('click', () => this.toggle());
+      toggleBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.toggle();
+      });
     }
 
     // Launch browser

@@ -670,69 +670,84 @@ class MultiWindowSync {
   }
 
   private setupConnectionIndicator(): void {
-    // Create connection indicator UI - always visible
-    const indicator = document.createElement('div');
-    indicator.id = 'multi-window-indicator';
-    indicator.className = 'multi-window-indicator';
-    indicator.innerHTML = `
-      <div class="connection-status" id="connection-status-clickable">
-        <div class="connection-dot"></div>
-        <span class="connection-text">Ready</span>
-        <span class="window-role-badge"></span>
-      </div>
-      <button class="connection-button" title="Open in new window" id="open-window-btn">
-        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
-        </svg>
-      </button>
-      <button class="connection-config-button" title="Configure windows" id="config-window-btn">
-        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-3.318 4.325-3.318 2.4 0 4.899 1.562 4.325 3.318m-1.455 4.315c-.426 1.756-1.924 2.318-4.325 2.318-2.4 0-3.899-.562-4.325-2.318m-1.455-4.315c.426 1.756 2.924 3.318 4.325 3.318 2.4 0 4.899-1.562 4.325-3.318m-1.455-4.315c-.426-1.756-1.924-2.318-4.325-2.318-2.4 0-3.899.562-4.325 2.318"/>
-        </svg>
-      </button>
-    `;
+    // Wait for status bar to be available, then integrate into it
+    const setupInStatusBar = () => {
+      const statusBar = document.getElementById('status-bar');
+      if (!statusBar) {
+        setTimeout(setupInStatusBar, 100);
+        return;
+      }
+      
+      // Create connection indicator UI - integrated into status bar
+      const indicator = document.createElement('div');
+      indicator.id = 'multi-window-indicator';
+      indicator.className = 'multi-window-indicator-status';
+      indicator.innerHTML = `
+        <div class="connection-status" id="connection-status-clickable">
+          <div class="connection-dot"></div>
+          <span class="connection-text">Ready</span>
+          <span class="window-role-badge"></span>
+        </div>
+        <button class="connection-button" title="Open in new window" id="open-window-btn">
+          <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+          </svg>
+        </button>
+        <button class="connection-config-button" title="Configure windows" id="config-window-btn">
+          <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-3.318 4.325-3.318 2.4 0 4.899 1.562 4.325 3.318m-1.455 4.315c-.426 1.756-1.924 2.318-4.325 2.318-2.4 0-3.899-.562-4.325-2.318m-1.455-4.315c.426 1.756 2.924 3.318 4.325 3.318 2.4 0 4.899-1.562 4.325-3.318m-1.455-4.315c-.426-1.756-1.924-2.318-4.325-2.318-2.4 0-3.899.562-4.325 2.318"/>
+          </svg>
+        </button>
+      `;
+      
+      // Add to status bar
+      statusBar.appendChild(indicator);
+      
+      // Create connection animation overlay (still needs to be in body for positioning)
+      const animation = document.createElement('div');
+      animation.id = 'connection-animation';
+      animation.className = 'connection-animation';
+      document.body.appendChild(animation);
+      
+      this.connectionIndicator = indicator;
+      this.connectionAnimation = animation;
+      
+      // Add click handler to open new window
+      const openButton = indicator.querySelector('#open-window-btn');
+      if (openButton) {
+        openButton.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          this.openInNewWindow();
+        });
+      }
+      
+      // Add click handler to open config panel
+      const configButton = indicator.querySelector('#config-window-btn');
+      const statusClickable = indicator.querySelector('#connection-status-clickable');
+      if (configButton) {
+        configButton.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          this.toggleConfigPanel();
+        });
+      }
+      if (statusClickable) {
+        statusClickable.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          this.toggleConfigPanel();
+        });
+      }
+      
+      // Always show as "ready" even with 0 windows
+      this.updateConnectionIndicator();
+      
+      this.setupConnectionStyles();
+      this.setupConfigPanel();
+    };
     
-    // Create connection animation overlay
-    const animation = document.createElement('div');
-    animation.id = 'connection-animation';
-    animation.className = 'connection-animation';
-    
-    document.body.appendChild(indicator);
-    document.body.appendChild(animation);
-    
-    this.connectionIndicator = indicator;
-    this.connectionAnimation = animation;
-    
-    // Add click handler to open new window
-    const openButton = indicator.querySelector('#open-window-btn');
-    if (openButton) {
-      openButton.addEventListener('click', (e) => {
-        e.stopPropagation();
-        this.openInNewWindow();
-      });
-    }
-    
-    // Add click handler to open config panel
-    const configButton = indicator.querySelector('#config-window-btn');
-    const statusClickable = indicator.querySelector('#connection-status-clickable');
-    if (configButton) {
-      configButton.addEventListener('click', (e) => {
-        e.stopPropagation();
-        this.toggleConfigPanel();
-      });
-    }
-    if (statusClickable) {
-      statusClickable.addEventListener('click', (e) => {
-        e.stopPropagation();
-        this.toggleConfigPanel();
-      });
-    }
-    
-    // Always show as "ready" even with 0 windows
-    this.updateConnectionIndicator();
-    
-    this.setupConnectionStyles();
-    this.setupConfigPanel();
+    setupInStatusBar();
   }
 
   private setupConnectionStyles(): void {
@@ -740,19 +755,11 @@ class MultiWindowSync {
       const style = document.createElement('style');
       style.id = 'multi-window-styles';
       style.textContent = `
-        .multi-window-indicator {
-          position: fixed;
-          top: 60px;
-          right: 20px;
-          z-index: 10000;
+        .multi-window-indicator-status {
           display: flex;
           align-items: center;
           gap: 0.5rem;
-          background: #2A2D3A;
-          border: 2px solid #424658;
-          border-radius: 0.5rem;
-          padding: 0.5rem 0.75rem;
-          box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+          margin-left: auto;
         }
         
         .connection-status {
@@ -947,31 +954,33 @@ class MultiWindowSync {
         /* Config Panel Styles */
         .connection-button,
         .connection-config-button {
-          width: 28px;
-          height: 28px;
+          width: 24px;
+          height: 24px;
           display: flex;
           align-items: center;
           justify-content: center;
-          background: #353849;
-          border: 2px solid #424658;
-          border-radius: 0.375rem;
+          background: transparent;
+          border: none;
+          border-radius: 0.25rem;
           color: #F0DAD5;
           cursor: pointer;
-          transition: all 0.2s;
+          padding: 0.25rem;
         }
         
         .connection-button:hover,
         .connection-config-button:hover {
-          background: #424658;
-          border-color: #6C739C;
-          transform: scale(1.05);
+          background: rgba(108, 115, 156, 0.2);
+          color: #8B92B5;
         }
         
         #connection-status-clickable {
           cursor: pointer;
           padding: 0.25rem 0.5rem;
-          border-radius: 0.375rem;
+          border-radius: 0.25rem;
           transition: background 0.2s;
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
         }
         
         #connection-status-clickable:hover {
@@ -980,7 +989,7 @@ class MultiWindowSync {
         
         .multi-window-config-panel {
           position: fixed;
-          top: 100px;
+          top: 80px;
           right: 20px;
           z-index: 10001;
           background: #2A2D3A;

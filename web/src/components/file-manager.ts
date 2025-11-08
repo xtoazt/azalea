@@ -140,7 +140,11 @@ export class FileManager {
     // Toggle visibility
     const toggleBtn = document.getElementById('fm-toggle');
     if (toggleBtn) {
-      toggleBtn.addEventListener('click', () => this.toggle());
+      toggleBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.toggle();
+      });
     }
 
     // Navigation

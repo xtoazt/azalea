@@ -73,7 +73,7 @@ async function installMacOSService() {
     <key>SuccessfulExit</key>
     <false/>
     <key>Crashed</key>
-    <true/>
+  <true/>
   </dict>
   <key>StandardOutPath</key>
   <string>${homeDir}/Library/Logs/clay-bridge.log</string>

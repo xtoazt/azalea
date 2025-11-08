@@ -2588,7 +2588,7 @@ echo $! > /tmp/clay-bridge.pid
       switch (subcommand) {
         case 'launch':
           const headless = args[1] !== 'gui';
-          this.terminal.write(`\r\n\x1b[36m[Puppeteer]\x1b[0m Launching browser (${headless ? 'headless' : 'GUI'})...\r\n`);
+          this.terminal.write(`\r\n\x1b[36m[Clay Puppeteer]\x1b[0m Launching browser (${headless ? 'headless' : 'GUI'})...\r\n`);
           const launchResult = await clayPuppeteerIntegration.launchBrowser(headless);
           this.terminal.write(launchResult.output + '\r\n');
           if (launchResult.success && launchResult.browserId) {
@@ -2598,17 +2598,17 @@ echo $! > /tmp/clay-bridge.pid
 
         case 'close':
           if (args.length < 2) {
-            this.terminal.write('\r\n\x1b[33m[Usage]\x1b[0m browserpod close <browserId>\r\n');
+            this.terminal.write('\r\n\x1b[33m[Usage]\x1b[0m claypuppeteer close <browserId>\r\n');
             break;
           }
-          this.terminal.write(`\r\n\x1b[36m[Puppeteer]\x1b[0m Closing browser: ${args[1]}...\r\n`);
+            this.terminal.write(`\r\n\x1b[36m[Clay Puppeteer]\x1b[0m Closing browser: ${args[1]}...\r\n`);
           const closeResult = await clayPuppeteerIntegration.closeBrowser(args[1]);
           this.terminal.write(closeResult.output + '\r\n');
           break;
 
         case 'list':
         case 'browsers':
-          this.terminal.write('\r\n\x1b[36m[Puppeteer]\x1b[0m Listing browsers...\r\n');
+          this.terminal.write('\r\n\x1b[36m[Clay Puppeteer]\x1b[0m Listing browsers...\r\n');
           const browsersResult = await clayPuppeteerIntegration.listBrowsers();
           if (browsersResult.success && browsersResult.browsers.length > 0) {
             browsersResult.browsers.forEach(browser => {
@@ -2621,16 +2621,16 @@ echo $! > /tmp/clay-bridge.pid
 
         case 'page':
           if (args.length < 3) {
-            this.terminal.write('\r\n\x1b[33m[Usage]\x1b[0m browserpod page <create|navigate|screenshot|close> [args...]\r\n');
+            this.terminal.write('\r\n\x1b[33m[Usage]\x1b[0m claypuppeteer page <create|navigate|screenshot|close> [args...]\r\n');
             break;
           }
           const pageAction = args[1];
           if (pageAction === 'create') {
             if (args.length < 3) {
-              this.terminal.write('\r\n\x1b[33m[Usage]\x1b[0m browserpod page create <browserId>\r\n');
+              this.terminal.write('\r\n\x1b[33m[Usage]\x1b[0m claypuppeteer page create <browserId>\r\n');
               break;
             }
-            this.terminal.write(`\r\n\x1b[36m[Puppeteer]\x1b[0m Creating page in browser: ${args[2]}...\r\n`);
+            this.terminal.write(`\r\n\x1b[36m[Clay Puppeteer]\x1b[0m Creating page in browser: ${args[2]}...\r\n`);
             const pageResult = await clayPuppeteerIntegration.createPage(args[2]);
             this.terminal.write(pageResult.output + '\r\n');
             if (pageResult.success && pageResult.pageId) {
@@ -2638,18 +2638,18 @@ echo $! > /tmp/clay-bridge.pid
             }
           } else if (pageAction === 'navigate') {
             if (args.length < 4) {
-              this.terminal.write('\r\n\x1b[33m[Usage]\x1b[0m browserpod page navigate <pageId> <url>\r\n');
+              this.terminal.write('\r\n\x1b[33m[Usage]\x1b[0m claypuppeteer page navigate <pageId> <url>\r\n');
               break;
             }
-            this.terminal.write(`\r\n\x1b[36m[Puppeteer]\x1b[0m Navigating to: ${args[3]}...\r\n`);
+            this.terminal.write(`\r\n\x1b[36m[Clay Puppeteer]\x1b[0m Navigating to: ${args[3]}...\r\n`);
             const navResult = await clayPuppeteerIntegration.navigate(args[2], args[3]);
             this.terminal.write(navResult.output + '\r\n');
           } else if (pageAction === 'screenshot') {
             if (args.length < 3) {
-              this.terminal.write('\r\n\x1b[33m[Usage]\x1b[0m browserpod page screenshot <pageId>\r\n');
+              this.terminal.write('\r\n\x1b[33m[Usage]\x1b[0m claypuppeteer page screenshot <pageId>\r\n');
               break;
             }
-            this.terminal.write(`\r\n\x1b[36m[Puppeteer]\x1b[0m Taking screenshot...\r\n`);
+            this.terminal.write(`\r\n\x1b[36m[Clay Puppeteer]\x1b[0m Taking screenshot...\r\n`);
             const screenshotResult = await clayPuppeteerIntegration.screenshot(args[2]);
             this.terminal.write(screenshotResult.output + '\r\n');
             if (screenshotResult.success && screenshotResult.screenshot) {
@@ -2657,17 +2657,17 @@ echo $! > /tmp/clay-bridge.pid
             }
           } else if (pageAction === 'close') {
             if (args.length < 3) {
-              this.terminal.write('\r\n\x1b[33m[Usage]\x1b[0m browserpod page close <pageId>\r\n');
+              this.terminal.write('\r\n\x1b[33m[Usage]\x1b[0m claypuppeteer page close <pageId>\r\n');
               break;
             }
-            this.terminal.write(`\r\n\x1b[36m[Puppeteer]\x1b[0m Closing page: ${args[2]}...\r\n`);
+            this.terminal.write(`\r\n\x1b[36m[Clay Puppeteer]\x1b[0m Closing page: ${args[2]}...\r\n`);
             const closePageResult = await clayPuppeteerIntegration.closePage(args[2]);
             this.terminal.write(closePageResult.output + '\r\n');
           }
           break;
 
         case 'pages':
-          this.terminal.write('\r\n\x1b[36m[Puppeteer]\x1b[0m Listing pages...\r\n');
+          this.terminal.write('\r\n\x1b[36m[Clay Puppeteer]\x1b[0m Listing pages...\r\n');
           const pagesResult = await clayPuppeteerIntegration.listPages();
           if (pagesResult.success && pagesResult.pages.length > 0) {
             pagesResult.pages.forEach(page => {
@@ -2680,20 +2680,20 @@ echo $! > /tmp/clay-bridge.pid
 
         case 'click':
           if (args.length < 4) {
-            this.terminal.write('\r\n\x1b[33m[Usage]\x1b[0m browserpod click <pageId> <selector>\r\n');
+            this.terminal.write('\r\n\x1b[33m[Usage]\x1b[0m claypuppeteer click <pageId> <selector>\r\n');
             break;
           }
-          this.terminal.write(`\r\n\x1b[36m[Puppeteer]\x1b[0m Clicking: ${args[2]}...\r\n`);
+          this.terminal.write(`\r\n\x1b[36m[Clay Puppeteer]\x1b[0m Clicking: ${args[2]}...\r\n`);
           const clickResult = await clayPuppeteerIntegration.click(args[1], args[2]);
           this.terminal.write(clickResult.output + '\r\n');
           break;
 
         case 'type':
           if (args.length < 4) {
-            this.terminal.write('\r\n\x1b[33m[Usage]\x1b[0m browserpod type <pageId> <selector> <text>\r\n');
+            this.terminal.write('\r\n\x1b[33m[Usage]\x1b[0m claypuppeteer type <pageId> <selector> <text>\r\n');
             break;
           }
-          this.terminal.write(`\r\n\x1b[36m[Puppeteer]\x1b[0m Typing into: ${args[2]}...\r\n`);
+          this.terminal.write(`\r\n\x1b[36m[Clay Puppeteer]\x1b[0m Typing into: ${args[2]}...\r\n`);
           const typeResult = await clayPuppeteerIntegration.type(args[1], args[2], args.slice(3).join(' '));
           this.terminal.write(typeResult.output + '\r\n');
           break;
@@ -2701,10 +2701,10 @@ echo $! > /tmp/clay-bridge.pid
         case 'eval':
         case 'evaluate':
           if (args.length < 3) {
-            this.terminal.write('\r\n\x1b[33m[Usage]\x1b[0m browserpod eval <pageId> <script>\r\n');
+            this.terminal.write('\r\n\x1b[33m[Usage]\x1b[0m claypuppeteer eval <pageId> <script>\r\n');
             break;
           }
-          this.terminal.write(`\r\n\x1b[36m[Puppeteer]\x1b[0m Evaluating script...\r\n`);
+          this.terminal.write(`\r\n\x1b[36m[Clay Puppeteer]\x1b[0m Evaluating script...\r\n`);
           const evalResult = await clayPuppeteerIntegration.evaluate(args[1], args.slice(2).join(' '));
           this.terminal.write(evalResult.output + '\r\n');
           if (evalResult.success && evalResult.result !== undefined) {
@@ -2715,10 +2715,10 @@ echo $! > /tmp/clay-bridge.pid
         case 'analyze':
         case 'performance':
           if (args.length < 2) {
-            this.terminal.write('\r\n\x1b[33m[Usage]\x1b[0m browserpod analyze <pageId>\r\n');
+            this.terminal.write('\r\n\x1b[33m[Usage]\x1b[0m claypuppeteer analyze <pageId>\r\n');
             break;
           }
-          this.terminal.write(`\r\n\x1b[36m[Puppeteer]\x1b[0m Analyzing performance...\r\n`);
+          this.terminal.write(`\r\n\x1b[36m[Clay Puppeteer]\x1b[0m Analyzing performance...\r\n`);
           const perfResult = await clayPuppeteerIntegration.analyzePerformance(args[1]);
           this.terminal.write(perfResult.output + '\r\n');
           if (perfResult.success && perfResult.metrics) {
@@ -2728,10 +2728,10 @@ echo $! > /tmp/clay-bridge.pid
 
         case 'seo':
           if (args.length < 2) {
-            this.terminal.write('\r\n\x1b[33m[Usage]\x1b[0m browserpod seo <pageId>\r\n');
+            this.terminal.write('\r\n\x1b[33m[Usage]\x1b[0m claypuppeteer seo <pageId>\r\n');
             break;
           }
-          this.terminal.write(`\r\n\x1b[36m[Puppeteer]\x1b[0m Extracting SEO data...\r\n`);
+          this.terminal.write(`\r\n\x1b[36m[Clay Puppeteer]\x1b[0m Extracting SEO data...\r\n`);
           const seoResult = await clayPuppeteerIntegration.extractSEO(args[1]);
           this.terminal.write(seoResult.output + '\r\n');
           if (seoResult.success && seoResult.seo) {
@@ -2744,10 +2744,10 @@ echo $! > /tmp/clay-bridge.pid
         case 'accessibility':
         case 'a11y':
           if (args.length < 2) {
-            this.terminal.write('\r\n\x1b[33m[Usage]\x1b[0m browserpod accessibility <pageId>\r\n');
+            this.terminal.write('\r\n\x1b[33m[Usage]\x1b[0m claypuppeteer accessibility <pageId>\r\n');
             break;
           }
-          this.terminal.write(`\r\n\x1b[36m[Puppeteer]\x1b[0m Testing accessibility...\r\n`);
+          this.terminal.write(`\r\n\x1b[36m[Clay Puppeteer]\x1b[0m Testing accessibility...\r\n`);
           const a11yResult = await clayPuppeteerIntegration.testAccessibility(args[1]);
           this.terminal.write(a11yResult.output + '\r\n');
           if (a11yResult.success && a11yResult.accessibility) {
@@ -2758,11 +2758,11 @@ echo $! > /tmp/clay-bridge.pid
 
         case 'scrape':
           if (args.length < 3) {
-            this.terminal.write('\r\n\x1b[33m[Usage]\x1b[0m browserpod scrape <pageId> <selector1=key1,selector2=key2>\r\n`);
-            this.terminal.write('  Example: browserpod scrape page_1 "h1=title,.price=price"\r\n');
+            this.terminal.write(`\r\n\x1b[33m[Usage]\x1b[0m claypuppeteer scrape <pageId> <selector1=key1,selector2=key2>\r\n`);
+            this.terminal.write(`  Example: claypuppeteer scrape page_1 "h1=title,.price=price"\r\n`);
             break;
           }
-          this.terminal.write(`\r\n\x1b[36m[Puppeteer]\x1b[0m Scraping data...\r\n`);
+          this.terminal.write(`\r\n\x1b[36m[Clay Puppeteer]\x1b[0m Scraping data...\r\n`);
           const selectors: Record<string, string> = {};
           args[2].split(',').forEach(pair => {
             const [selector, key] = pair.split('=');
@@ -2777,10 +2777,10 @@ echo $! > /tmp/clay-bridge.pid
 
         case 'content':
           if (args.length < 2) {
-            this.terminal.write('\r\n\x1b[33m[Usage]\x1b[0m browserpod content <pageId>\r\n');
+            this.terminal.write('\r\n\x1b[33m[Usage]\x1b[0m claypuppeteer content <pageId>\r\n');
             break;
           }
-          this.terminal.write(`\r\n\x1b[36m[Puppeteer]\x1b[0m Extracting content...\r\n`);
+          this.terminal.write(`\r\n\x1b[36m[Clay Puppeteer]\x1b[0m Extracting content...\r\n`);
           const contentResult = await clayPuppeteerIntegration.extractContent(args[1]);
           this.terminal.write(contentResult.output + '\r\n');
           if (contentResult.success && contentResult.content) {
@@ -2795,10 +2795,10 @@ echo $! > /tmp/clay-bridge.pid
 
         case 'report':
           if (args.length < 2) {
-            this.terminal.write('\r\n\x1b[33m[Usage]\x1b[0m browserpod report <pageId> [url]\r\n');
+            this.terminal.write('\r\n\x1b[33m[Usage]\x1b[0m claypuppeteer report <pageId> [url]\r\n');
             break;
           }
-          this.terminal.write(`\r\n\x1b[36m[Puppeteer]\x1b[0m Generating comprehensive report...\r\n`);
+          this.terminal.write(`\r\n\x1b[36m[Clay Puppeteer]\x1b[0m Generating comprehensive report...\r\n`);
           const reportResult = await clayPuppeteerIntegration.generateReport(args[1], args[2]);
           this.terminal.write(reportResult.output + '\r\n');
           if (reportResult.success && reportResult.report) {
@@ -2814,11 +2814,11 @@ echo $! > /tmp/clay-bridge.pid
         case 'fill':
         case 'form':
           if (args.length < 3) {
-            this.terminal.write('\r\n\x1b[33m[Usage]\x1b[0m browserpod fill <pageId> <selector1=value1,selector2=value2>\r\n`);
-            this.terminal.write('  Example: browserpod fill page_1 "#email=test@example.com,#password=secret"\r\n');
+            this.terminal.write(`\r\n\x1b[33m[Usage]\x1b[0m claypuppeteer fill <pageId> <selector1=value1,selector2=value2>\r\n`);
+            this.terminal.write(`  Example: claypuppeteer fill page_1 "#email=test@example.com,#password=secret"\r\n`);
             break;
           }
-          this.terminal.write(`\r\n\x1b[36m[Puppeteer]\x1b[0m Filling form...\r\n`);
+          this.terminal.write(`\r\n\x1b[36m[Clay Puppeteer]\x1b[0m Filling form...\r\n`);
           const formData: Record<string, string> = {};
           args[2].split(',').forEach(pair => {
             const [selector, value] = pair.split('=');

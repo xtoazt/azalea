@@ -388,7 +388,7 @@ export class FileManager {
         const type = target.getAttribute('data-type');
         
         if (path) {
-          if (e.shiftKey || e.ctrlKey || e.metaKey) {
+          if ((e as KeyboardEvent).shiftKey || (e as KeyboardEvent).ctrlKey || (e as KeyboardEvent).metaKey) {
             // Multi-select (future enhancement)
             this.selectedItem = path;
           } else {
@@ -665,10 +665,10 @@ export class FileManager {
     const hasSelection = this.selectedItem !== null;
 
     if (deleteBtn) {
-      deleteBtn.disabled = !hasSelection;
+      (deleteBtn as HTMLButtonElement).disabled = !hasSelection;
     }
     if (renameBtn) {
-      renameBtn.disabled = !hasSelection;
+      (renameBtn as HTMLButtonElement).disabled = !hasSelection;
     }
   }
 

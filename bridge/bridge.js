@@ -399,33 +399,33 @@ app.post('/api/execute', async (req, res) => {
     
     let result;
     try {
-      if (privileged) {
-        // Execute with full system privileges (bypass all restrictions)
-        result = await systemAccess.executeWithFullPrivileges(command, {
-          cwd: workingDir,
-          timeout: 30000
-        });
-      } else if (root) {
-        // Execute as root
-        result = await systemAccess.executeAsRoot(command, {
-          cwd: workingDir,
-          timeout: 30000
-        });
-      } else {
-        // Regular execution
-        result = await execAsync(fullCommand, {
-          cwd: workingDir,
-          env: process.env,
-          timeout: 30000,
-          maxBuffer: 10 * 1024 * 1024 // 10MB buffer
-        });
-      }
-      
-      res.json({
-        success: true,
-        output: result.stdout || result.stderr || '',
-        exitCode: result.stderr ? 1 : 0
+    if (privileged) {
+      // Execute with full system privileges (bypass all restrictions)
+      result = await systemAccess.executeWithFullPrivileges(command, {
+        cwd: workingDir,
+        timeout: 30000
       });
+    } else if (root) {
+      // Execute as root
+      result = await systemAccess.executeAsRoot(command, {
+        cwd: workingDir,
+        timeout: 30000
+      });
+    } else {
+      // Regular execution
+      result = await execAsync(fullCommand, {
+      cwd: workingDir,
+      env: process.env,
+      timeout: 30000,
+      maxBuffer: 10 * 1024 * 1024 // 10MB buffer
+    });
+    }
+    
+    res.json({
+      success: true,
+      output: result.stdout || result.stderr || '',
+      exitCode: result.stderr ? 1 : 0
+    });
     } catch (execError) {
       // Command execution error - return error but don't crash
       res.json({
@@ -1382,9 +1382,9 @@ app.get('/api/info', async (req, res) => {
 app.get('/api/health', (req, res) => {
   try {
     const health = {
-      status: 'ok',
-      timestamp: new Date().toISOString(),
-      platform: process.platform,
+    status: 'ok', 
+    timestamp: new Date().toISOString(),
+    platform: process.platform,
       pid: process.pid,
       uptime: process.uptime(),
       memory: {
@@ -1727,13 +1727,13 @@ const MAX_START_ATTEMPTS = 5;
 async function startServer() {
   return new Promise((resolve, reject) => {
     try {
-      server.listen(PORT, HOST, () => {
-        console.log(`🚀 Clay Terminal Bridge running on http://${HOST}:${PORT}`);
-        console.log(`📡 WebSocket server ready at ws://${HOST}:${PORT}/ws`);
-        console.log(`💻 Shell: ${getShell()}`);
-        console.log(`🏠 Home directory: ${os.homedir()}`);
-        console.log(`🖥️  Platform: ${process.platform}`);
-        console.log(`\n✨ Ready to execute real system commands!`);
+server.listen(PORT, HOST, () => {
+  console.log(`🚀 Clay Terminal Bridge running on http://${HOST}:${PORT}`);
+  console.log(`📡 WebSocket server ready at ws://${HOST}:${PORT}/ws`);
+  console.log(`💻 Shell: ${getShell()}`);
+  console.log(`🏠 Home directory: ${os.homedir()}`);
+  console.log(`🖥️  Platform: ${process.platform}`);
+  console.log(`\n✨ Ready to execute real system commands!`);
         resolve();
       });
 

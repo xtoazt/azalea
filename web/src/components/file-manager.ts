@@ -232,6 +232,9 @@ export class FileManager {
     this.isVisible = true;
     if (this.container) {
       this.container.classList.add('visible');
+      // Ensure container is visible and properly positioned
+      this.container.style.display = 'flex';
+      this.container.style.flexDirection = 'column';
       this.refresh();
     }
   }

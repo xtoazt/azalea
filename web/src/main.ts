@@ -2982,6 +2982,9 @@ echo $! > /tmp/azalea-bridge.pid
 
       // Connect file manager to backend
       fileManager.setBackend(this.backend);
+      // Expose file manager globally for multi-window sync
+      (window as any).fileManager = fileManager;
+      (window as any).browserAutomation = browserAutomation;
       
       // Connect integrations to backend
       leafupIntegration.setBackend(this.backend as BackendInterface);
@@ -5584,13 +5587,14 @@ function renderTerminalView(): void {
 
   const sidebarFiles = document.getElementById('sidebar-files');
   if (sidebarFiles) {
-    sidebarFiles.addEventListener('click', async () => {
-      const terminal = (window as any).azaleaTerminal;
-      if (terminal && terminal.scanFilesystem) {
-        await terminal.scanFilesystem();
-      } else {
-        notificationManager.warning('Terminal not ready. Please wait for initialization.');
-      }
+    sidebarFiles.addEventListener('click', () => {
+      // Show file manager
+      fileManager.show();
+      // Update sidebar active state
+      document.querySelectorAll('.sidebar-item').forEach(item => {
+        item.classList.remove('active');
+      });
+      sidebarFiles.classList.add('active');
     });
   }
 

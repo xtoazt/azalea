@@ -532,6 +532,7 @@ class MultiWindowSync {
       const fmEl = fileManagerContainer as HTMLElement;
       fmEl.classList.add('visible');
       fmEl.style.display = 'flex';
+      fmEl.style.flexDirection = 'column';
       fmEl.style.position = 'fixed';
       fmEl.style.left = '80px'; // After sidebar
       fmEl.style.right = '50%';
@@ -540,7 +541,14 @@ class MultiWindowSync {
       fmEl.style.width = 'calc(50% - 80px)';
       fmEl.style.height = 'calc(100vh - 60px)';
       fmEl.style.borderRight = '2px solid #424658';
+      fmEl.style.zIndex = '100';
       fmEl.classList.remove('multi-window-hidden');
+      
+      // Ensure file manager is visible and accessible
+      if ((window as any).fileManager) {
+        (window as any).fileManager.isVisible = true;
+        (window as any).fileManager.show();
+      }
     }
     
     // Show browser automation - position it on the right side
@@ -549,6 +557,7 @@ class MultiWindowSync {
       const baEl = browserAutomationContainer as HTMLElement;
       baEl.classList.add('visible');
       baEl.style.display = 'flex';
+      baEl.style.flexDirection = 'column';
       baEl.style.position = 'fixed';
       baEl.style.left = '50%';
       baEl.style.right = '0';
@@ -557,7 +566,14 @@ class MultiWindowSync {
       baEl.style.width = '50%';
       baEl.style.height = 'calc(100vh - 60px)';
       baEl.style.borderLeft = '2px solid #424658';
+      baEl.style.zIndex = '100';
       baEl.classList.remove('multi-window-hidden');
+      
+      // Ensure browser automation is visible
+      if ((window as any).browserAutomation) {
+        (window as any).browserAutomation.isVisible = true;
+        (window as any).browserAutomation.show();
+      }
     }
     
     // Keep sidebar visible
@@ -1347,11 +1363,16 @@ class MultiWindowSync {
   }
 
   private openInNewWindow(): void {
-    // Open current page in new window
+    // Open current page in a new ChromeOS window (separate browser window)
+    // Use window.open with specific features to ensure it opens as a new window, not tab
     const url = window.location.href;
-    const newWindow = window.open(url, '_blank', 'width=1200,height=800');
+    const windowFeatures = 'width=1200,height=800,left=100,top=100,resizable=yes,scrollbars=yes,status=yes';
+    const newWindow = window.open(url, '_blank', windowFeatures);
     
     if (newWindow) {
+      // Focus the new window
+      newWindow.focus();
+      
       // Store that we're opening a new window
       sessionStorage.setItem('azalea-new-window', 'true');
       sessionStorage.setItem('azalea-window-role', 'tools'); // New window will be tools window
@@ -1366,6 +1387,9 @@ class MultiWindowSync {
           this.redistributeComponents();
         }, 1000);
       }, 2000);
+    } else {
+      // If popup was blocked, show notification
+      console.warn('[Multi-Window] Popup blocked. Please allow popups for this site to use multi-window features.');
     }
   }
 

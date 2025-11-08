@@ -27,12 +27,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/xtoazt/clay.git"
+    "url": "https://github.com/xtoazt/azalea.git"
   },
   "bugs": {
-    "url": "https://github.com/xtoazt/clay/issues"
+    "url": "https://github.com/xtoazt/azalea/issues"
   },
-  "homepage": "https://github.com/xtoazt/clay#readme",
+  "homepage": "https://github.com/xtoazt/azalea#readme",
   "dependencies": {},
   "devDependencies": {}
 }

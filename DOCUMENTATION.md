@@ -112,7 +112,7 @@ A: See [README-PACKAGE.md - Session Sharing](./README-PACKAGE.md#session-sharing
 
 ## 📧 Support
 
-- GitHub Issues: [Open an issue](https://github.com/xtoazt/clay/issues)
+- GitHub Issues: [Open an issue](https://github.com/xtoazt/azalea/issues)
 - Documentation: Check the relevant guide above
 - Examples: See `package/examples/` directory
 

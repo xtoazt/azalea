@@ -1,0 +1,29 @@
+name: Sync Repositories
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      
+      - name: Configure Git
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+      
+      - name: Push to Organization Repo
+        if: github.repository == 'xtoazt/azalea'
+        run: |
+          git remote add upstream https://github.com/xazalea/azalea.git || true
+          git push upstream ${GITHUB_REF#refs/heads/} || echo "Push failed (may need manual setup)"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+

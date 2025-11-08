@@ -1,0 +1,7 @@
+# Azalea Terminal
+
+Push to both repositories:
+- Primary: xtoazt/azalea
+- Organization: xazalea/azalea
+
+Use: ./scripts/push-both.sh

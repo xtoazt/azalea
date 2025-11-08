@@ -368,7 +368,7 @@ Contributions welcome! Please feel free to submit a Pull Request.
 ## 📧 Support
 
 For issues and questions:
-- GitHub Issues: https://github.com/xtoazt/clay/issues
+- GitHub Issues: https://github.com/xtoazt/azalea/issues
 
 ## 🎯 Use Cases
 

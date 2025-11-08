@@ -13,10 +13,10 @@ body {
   @apply text-gray-100;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
   background: 
-    radial-gradient(circle at 20% 50%, rgba(30, 58, 138, 0.15) 0%, transparent 50%),
-    radial-gradient(circle at 80% 80%, rgba(194, 65, 12, 0.15) 0%, transparent 50%),
-    radial-gradient(circle at 40% 20%, rgba(234, 88, 12, 0.1) 0%, transparent 50%),
-    linear-gradient(135deg, #0a0a0f 0%, #0f172a 50%, #1a1a2e 100%);
+    radial-gradient(circle at 20% 50%, rgba(139, 92, 246, 0.15) 0%, transparent 50%),
+    radial-gradient(circle at 80% 80%, rgba(59, 130, 246, 0.15) 0%, transparent 50%),
+    radial-gradient(circle at 40% 20%, rgba(96, 165, 250, 0.1) 0%, transparent 50%),
+    linear-gradient(135deg, #0f0a1a 0%, #1a1a2e 50%, #1e1b2e 100%);
   background-attachment: fixed;
   min-height: 100vh;
   position: relative;
@@ -27,9 +27,9 @@ body::before {
   position: fixed;
   inset: 0;
   background: 
-    radial-gradient(circle at 20% 50%, rgba(30, 58, 138, 0.12) 0%, transparent 50%),
-    radial-gradient(circle at 80% 80%, rgba(194, 65, 12, 0.12) 0%, transparent 50%),
-    radial-gradient(circle at 50% 50%, rgba(37, 99, 235, 0.08) 0%, transparent 60%);
+    radial-gradient(circle at 20% 50%, rgba(139, 92, 246, 0.12) 0%, transparent 50%),
+    radial-gradient(circle at 80% 80%, rgba(59, 130, 246, 0.12) 0%, transparent 50%),
+    radial-gradient(circle at 50% 50%, rgba(96, 165, 250, 0.08) 0%, transparent 60%);
   pointer-events: none;
   z-index: 0;
   animation: pulse 8s ease-in-out infinite;
@@ -85,32 +85,39 @@ body::before {
   background: transparent !important;
 }
 
-/* Matte effects - Solid, non-transparent design */
+/* Matte effects - Solid, non-transparent design with Lavender Sapphire Mist */
 .glass {
-  background: rgb(17, 24, 39);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(31, 41, 55, 0.8);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(139, 92, 246, 0.2);
   box-shadow: 
     0 4px 16px rgba(0, 0, 0, 0.3),
-    0 0 0 1px rgba(255, 255, 255, 0.05);
+    0 0 0 1px rgba(139, 92, 246, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
 }
 
 .glass:hover {
-  background: rgb(30, 41, 59);
-  border-color: rgba(255, 255, 255, 0.15);
+  background: rgba(37, 47, 63, 0.9);
+  border-color: rgba(139, 92, 246, 0.4);
   box-shadow: 
     0 6px 20px rgba(0, 0, 0, 0.4),
-    0 0 0 1px rgba(255, 255, 255, 0.08);
+    0 0 0 1px rgba(139, 92, 246, 0.2),
+    0 0 30px rgba(139, 92, 246, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transform: translateY(-1px);
 }
 
-/* Status bar enhancements - Matte design */
+/* Status bar enhancements - Lavender Sapphire Mist design */
 #status-bar {
-  background: rgb(17, 24, 39);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(31, 41, 55, 0.9);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(139, 92, 246, 0.2);
   box-shadow: 
     0 2px 12px rgba(0, 0, 0, 0.3),
-    0 0 0 1px rgba(255, 255, 255, 0.05);
+    0 0 0 1px rgba(139, 92, 246, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
   position: relative;
   z-index: 10;
 }
@@ -280,17 +287,19 @@ button:active, .control:active {
   transform: scale(0.98);
 }
 
-/* Status indicator glow - enhanced with smooth animations */
+/* Status indicator glow - Lavender Sapphire Mist theme */
 .status-dot.connected {
-  box-shadow: 0 0 8px rgba(34, 197, 94, 0.6), 0 0 16px rgba(34, 197, 94, 0.3);
-  animation: pulse-glow-green 2s ease-in-out infinite;
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.8), 0 0 16px rgba(59, 130, 246, 0.4);
+  animation: pulse-glow-sapphire 2s ease-in-out infinite;
+  background: #3B82F6;
 }
 
 .status-dot.connecting,
 .status-dot.searching,
 .status-dot.thinking {
-  box-shadow: 0 0 8px rgba(234, 179, 8, 0.6), 0 0 16px rgba(234, 179, 8, 0.3);
-  animation: pulse-glow-yellow 1.5s ease-in-out infinite;
+  box-shadow: 0 0 8px rgba(139, 92, 246, 0.8), 0 0 16px rgba(139, 92, 246, 0.4);
+  animation: pulse-glow-lavender 1.5s ease-in-out infinite;
+  background: #8B5CF6;
 }
 
 .status-dot.error {
@@ -304,21 +313,21 @@ button:active, .control:active {
   animation: none;
 }
 
-@keyframes pulse-glow-green {
+@keyframes pulse-glow-sapphire {
   0%, 100% {
-    box-shadow: 0 0 8px rgba(34, 197, 94, 0.6);
+    box-shadow: 0 0 8px rgba(59, 130, 246, 0.6);
   }
   50% {
-    box-shadow: 0 0 16px rgba(34, 197, 94, 0.9);
+    box-shadow: 0 0 16px rgba(59, 130, 246, 0.9), 0 0 24px rgba(59, 130, 246, 0.5);
   }
 }
 
-@keyframes pulse-glow-yellow {
+@keyframes pulse-glow-lavender {
   0%, 100% {
-    box-shadow: 0 0 8px rgba(234, 179, 8, 0.6);
+    box-shadow: 0 0 8px rgba(139, 92, 246, 0.6);
   }
   50% {
-    box-shadow: 0 0 16px rgba(234, 179, 8, 0.9);
+    box-shadow: 0 0 16px rgba(139, 92, 246, 0.9), 0 0 24px rgba(139, 92, 246, 0.5);
   }
 }
 
@@ -952,13 +961,15 @@ select:focus-visible {
   border-radius: 4px;
 }
 
-/* Sidebar Navigation Styles - Matte */
+/* Sidebar Navigation Styles - Lavender Sapphire Mist */
 .sidebar {
-  background: rgb(17, 24, 39);
-  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(31, 41, 55, 0.9);
+  backdrop-filter: blur(20px);
+  border-right: 1px solid rgba(139, 92, 246, 0.2);
   box-shadow: 
     4px 0 16px rgba(0, 0, 0, 0.3),
-    0 0 0 1px rgba(255, 255, 255, 0.05);
+    0 0 0 1px rgba(139, 92, 246, 0.1),
+    inset -1px 0 0 rgba(255, 255, 255, 0.05);
 }
 
 .sidebar-item {
@@ -973,21 +984,22 @@ select:focus-visible {
   top: 0;
   bottom: 0;
   width: 3px;
-  background: linear-gradient(180deg, rgba(37, 99, 235, 1), rgba(234, 88, 12, 1));
+  background: linear-gradient(180deg, rgba(139, 92, 246, 1), rgba(59, 130, 246, 1));
   border-radius: 0 2px 2px 0;
-  box-shadow: 0 0 12px rgba(37, 99, 235, 0.6);
+  box-shadow: 0 0 12px rgba(139, 92, 246, 0.6), 0 0 20px rgba(59, 130, 246, 0.4);
 }
 
 .sidebar-item.active {
-  background: rgba(37, 99, 235, 0.15);
-  border-left: 3px solid rgba(37, 99, 235, 0.8);
+  background: rgba(139, 92, 246, 0.15);
+  border-left: 3px solid rgba(139, 92, 246, 0.8);
 }
 
 .sidebar-item:hover {
-  background: rgba(37, 99, 235, 0.1);
+  background: rgba(139, 92, 246, 0.1);
+  transform: translateX(2px);
 }
 
-/* Card hover effects - enhanced with smooth transitions */
+/* Card hover effects - Lavender Sapphire Mist theme */
 .card-glow-blue {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -995,10 +1007,11 @@ select:focus-visible {
 .card-glow-blue:hover {
   box-shadow: 
     0 12px 48px rgba(0, 0, 0, 0.5),
-    0 0 0 1px rgba(255, 255, 255, 0.08),
-    0 0 60px rgba(37, 99, 235, 0.2),
-    0 0 100px rgba(37, 99, 235, 0.1);
+    0 0 0 1px rgba(139, 92, 246, 0.2),
+    0 0 60px rgba(59, 130, 246, 0.3),
+    0 0 100px rgba(139, 92, 246, 0.2);
   transform: translateY(-2px);
+  border-color: rgba(139, 92, 246, 0.4);
 }
 
 .card-glow-orange {
@@ -1008,10 +1021,11 @@ select:focus-visible {
 .card-glow-orange:hover {
   box-shadow: 
     0 12px 48px rgba(0, 0, 0, 0.5),
-    0 0 0 1px rgba(255, 255, 255, 0.08),
-    0 0 60px rgba(234, 88, 12, 0.2),
-    0 0 100px rgba(234, 88, 12, 0.1);
+    0 0 0 1px rgba(139, 92, 246, 0.2),
+    0 0 60px rgba(139, 92, 246, 0.3),
+    0 0 100px rgba(59, 130, 246, 0.2);
   transform: translateY(-2px);
+  border-color: rgba(139, 92, 246, 0.4);
 }
 
 /* Loading states */

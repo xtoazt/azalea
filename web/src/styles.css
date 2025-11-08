@@ -19,18 +19,24 @@
   --heroui-default-800: #27272a;
   --heroui-default-900: #18181b;
   
-  /* Primary Colors - HeroUI Blue */
-  --heroui-primary: #0072f5;
-  --heroui-primary-50: #e6f2ff;
-  --heroui-primary-100: #b3d9ff;
-  --heroui-primary-200: #80bfff;
-  --heroui-primary-300: #4da6ff;
-  --heroui-primary-400: #1a8cff;
-  --heroui-primary-500: #0072f5;
-  --heroui-primary-600: #0059c2;
-  --heroui-primary-700: #00408f;
-  --heroui-primary-800: #00265c;
-  --heroui-primary-900: #000d29;
+  /* Primary Colors - Lavender Sapphire Mist */
+  --heroui-primary: #8B5CF6;
+  --heroui-primary-50: #F5F3FF;
+  --heroui-primary-100: #EDE9FE;
+  --heroui-primary-200: #DDD6FE;
+  --heroui-primary-300: #C4B5FD;
+  --heroui-primary-400: #A78BFA;
+  --heroui-primary-500: #8B5CF6;
+  --heroui-primary-600: #7C3AED;
+  --heroui-primary-700: #6D28D9;
+  --heroui-primary-800: #5B21B6;
+  --heroui-primary-900: #4C1D95;
+  
+  /* Sapphire Accent */
+  --sapphire-primary: #3B82F6;
+  --sapphire-400: #60A5FA;
+  --sapphire-500: #3B82F6;
+  --sapphire-600: #2563EB;
   
   /* Success */
   --heroui-success: #17c964;

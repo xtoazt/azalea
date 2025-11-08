@@ -98,9 +98,7 @@ class MultiWindowSync {
     
     // Announce this window's presence
     this.broadcast({
-      type: 'ping',
-      windowId: this.windowId,
-      timestamp: Date.now()
+      type: 'ping'
     });
     
     // Broadcast window role
@@ -124,9 +122,7 @@ class MultiWindowSync {
         case 'ping':
           this.handlePing(message);
           this.broadcast({
-            type: 'pong',
-            windowId: this.windowId,
-            timestamp: Date.now()
+            type: 'pong'
           });
           break;
           
@@ -606,9 +602,7 @@ class MultiWindowSync {
   private startPingInterval(): void {
     this.pingInterval = setInterval(() => {
       this.broadcast({
-        type: 'ping',
-        windowId: this.windowId,
-        timestamp: Date.now()
+        type: 'ping'
       });
     }, 2000); // Ping every 2 seconds
   }
@@ -1281,7 +1275,7 @@ class MultiWindowSync {
       dot.classList.add('connected');
       // Pulse animation even when alone to show it's active
       if (connectedCount === 0) {
-        dot.style.animation = 'pulse-connection 2s ease-in-out infinite';
+        (dot as HTMLElement).style.animation = 'pulse-connection 2s ease-in-out infinite';
       }
     }
     
@@ -1365,9 +1359,7 @@ class MultiWindowSync {
       // Send sync request after a delay to allow new window to initialize
       setTimeout(() => {
         this.broadcast({
-          type: 'sync-request',
-          windowId: this.windowId,
-          timestamp: Date.now()
+          type: 'sync-request'
         });
         // Redistribute components after new window connects
         setTimeout(() => {

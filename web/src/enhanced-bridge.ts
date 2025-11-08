@@ -121,37 +121,52 @@ export class EnhancedBridge {
   private async connectExternalBridge(): Promise<BridgeBackend | null> {
     try {
       const bridge = new BridgeBackend();
-      // Try health check first, but don't fail if it times out
+      
+      // Try health check first with multiple attempts
       // On ChromeOS, the bridge might be starting up
       let isHealthy = false;
-      try {
-        isHealthy = await retryWithBackoff(
-          () => bridge.healthCheck(),
-          this.config.retryAttempts,
-          1000, // Longer retry delay for ChromeOS
-          { component: 'EnhancedBridge', operation: 'connectExternalBridge' }
-        );
-      } catch (healthError) {
-        // Health check failed, but try connecting anyway
-        // Sometimes the bridge is up but health endpoint isn't ready
-        console.log('[EnhancedBridge] Health check failed, attempting connection anyway:', healthError instanceof Error ? healthError.message : String(healthError));
+      const healthCheckAttempts = 3;
+      
+      for (let i = 0; i < healthCheckAttempts; i++) {
+        try {
+          isHealthy = await bridge.healthCheck();
+          if (isHealthy) {
+            console.log('[EnhancedBridge] Health check passed');
+            break;
+          }
+        } catch (healthError) {
+          console.log(`[EnhancedBridge] Health check attempt ${i + 1}/${healthCheckAttempts} failed`);
+          if (i < healthCheckAttempts - 1) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
+        }
       }
       
-      // Try to connect even if health check failed
+      // Try to connect regardless of health check result
       // On ChromeOS, the bridge might be ready but health endpoint slow
       try {
-        // Use a longer timeout for ChromeOS
-        const connectPromise = bridge.connect();
-        const timeoutPromise = new Promise<never>((_, reject) => {
-          setTimeout(() => reject(new Error('Connection timeout')), 10000);
-        });
+        console.log('[EnhancedBridge] Attempting bridge connection...');
+        await bridge.connect();
         
-        await Promise.race([connectPromise, timeoutPromise]);
-        return bridge;
+        // Verify connection is actually established
+        if (bridge.getConnected() && bridge.getSessionId()) {
+          console.log('[EnhancedBridge] Bridge connected successfully');
+          return bridge;
+        } else {
+          console.log('[EnhancedBridge] Bridge connection established but not fully ready');
+          // Give it a moment and check again
+          await new Promise(resolve => setTimeout(resolve, 500));
+          if (bridge.getConnected() && bridge.getSessionId()) {
+            return bridge;
+          }
+        }
       } catch (connectError) {
         console.log('[EnhancedBridge] Bridge connection failed:', connectError instanceof Error ? connectError.message : String(connectError));
+        bridge.disconnect();
         return null;
       }
+      
+      return null;
     } catch (error) {
       // External bridge not available - this is expected on most devices
       console.log('[EnhancedBridge] External bridge not available:', error instanceof Error ? error.message : String(error));
@@ -188,12 +203,31 @@ export class EnhancedBridge {
       }
 
       try {
-        // Check if bridge is still healthy
+        // Check if bridge is still connected and healthy
         if (this.bridgeType === 'external' && this.currentBridge instanceof BridgeBackend) {
+          const isConnected = this.currentBridge.getConnected();
+          
+          if (!isConnected) {
+            console.warn('[EnhancedBridge] Bridge connection lost');
+            if (this.config.enableAutoFallback) {
+              await this.reconnect();
+            }
+            return;
+          }
+          
+          // Only check health if connected (to avoid unnecessary checks)
           const isHealthy = await this.currentBridge.healthCheck();
           if (!isHealthy && this.config.enableAutoFallback) {
             console.warn('[EnhancedBridge] External bridge unhealthy, attempting fallback...');
             await this.reconnect();
+          }
+        } else if (this.bridgeType === 'webvm' && this.currentBridge instanceof WebWorkerBackendWrapper) {
+          // Check WebVM connection
+          if (!this.currentBridge.getConnected()) {
+            console.warn('[EnhancedBridge] WebVM connection lost');
+            if (this.config.enableAutoFallback) {
+              await this.reconnect();
+            }
           }
         }
       } catch (error) {
@@ -206,7 +240,7 @@ export class EnhancedBridge {
           await this.reconnect();
         }
       }
-    }, 5000);
+    }, 10000); // Check every 10 seconds instead of 5
   }
 
   /**

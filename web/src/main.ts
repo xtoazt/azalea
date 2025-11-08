@@ -2968,8 +2968,8 @@ echo $! > /tmp/azalea-bridge.pid
       const enhancedBridge = getEnhancedBridge({
         preferredType: this.isChromeOS ? 'external' : 'webvm',
         enableAutoFallback: true,
-        retryAttempts: this.isChromeOS ? 3 : 1, // Faster fallback on non-ChromeOS
-        timeout: this.isChromeOS ? 10000 : 3000 // Shorter timeout on non-ChromeOS
+        retryAttempts: this.isChromeOS ? 5 : 2, // More attempts on ChromeOS
+        timeout: this.isChromeOS ? 20000 : 5000 // Longer timeout on ChromeOS for bridge startup
       });
 
       // Initialize backend - this will always succeed (falls back to WebVM)
